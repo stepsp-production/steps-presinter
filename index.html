@@ -202,10 +202,10 @@
   <div id="sysBanner"></div>
 
   <!-- إعداد مصدر HLS عبر Worker خارجي (عدّل إذا لزم) -->
-  <script>
-    window.HLS_BASE = "https://hls-proxy.it-f2c.workers.dev";
-  </script>
-
+ <script>
+  // اجعلها فارغة ليستخدم /hls على نفس الدومين
+  window.HLS_BASE = "";
+</script>
   <!-- ===== مصادر البث + قائمة القنوات ===== -->
   <script>
     (function(){

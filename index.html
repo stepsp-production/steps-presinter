@@ -5,19 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Steps Co VIP Player</title>
 
-  <!-- HLS.js (بدون Worker لتجنب حاجة worker-src في CSP) -->
+  <!-- HLS.js — بدون Worker لتفادي قيود worker-src في CSP -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js" crossorigin="anonymous"></script>
 
-  <!-- LiveKit: حمّل من الدومين الخاص بك أولاً (Functions: /functions/vendor/[file].js) -->
+  <!-- محاولة أولى: UMD من مسارك عبر Functions -->
   <script defer src="/vendor/livekit-client.umd.min.js"></script>
-  <!-- احتياطي موثوق (مسموح في CSP لديك): jsDelivr -->
+  <!-- احتياطي UMD من jsDelivr (إن سمحت به الـCSP) -->
   <script defer src="https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js" crossorigin="anonymous"></script>
 
   <style>
-    :root{
-      --btn:#00c19a; --btn2:#00ad8a; --btn3:#009e7e;
-      --ring:rgba(0,193,154,.28); --panel:#0b0b0fe6; --bd:#ffffff26;
-    }
+    :root{ --btn:#00c19a; --btn2:#00ad8a; --btn3:#009e7e; --ring:rgba(0,193,154,.28); --panel:#0b0b0fe6; --bd:#ffffff26; }
     *{box-sizing:border-box} html,body{height:100%}
     body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
     #player{position:relative;width:100vw;height:100vh}
@@ -70,7 +67,7 @@
     .item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
     .name{font-weight:800;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
 
-    /* إخفاء تلقائي للواجهة عند الخمول (يشمل الشريط والأزرار والـ LiveKit) */
+    /* إخفاء تلقائي للواجهة عند الخمول (يشمل الشريط/الأزرار/لوحة LiveKit) */
     .ui-hide #panel, .ui-hide #tools, .ui-hide #global, .ui-hide #lk{opacity:0; pointer-events:none}
     .ui-show #panel, .ui-show #tools, .ui-show #global, .ui-show #lk{opacity:1; pointer-events:auto}
 
@@ -171,10 +168,43 @@
       {id:'cam7',label:'SINEFLEX',src:SOURCES.cam7},
     ];
 
-    /* ===================== LiveKit Global ===================== */
-    function getLK(){
-      // UMD يصدّر عادة LivekitClient
-      return window.LivekitClient || window.LiveKit || window.livekitClient || window.Livekit || window.LK || null;
+    /* ===================== LiveKit Loader (UMD + ESM) ===================== */
+    function pickGlobalLK() {
+      const cands = [
+        window.LivekitClient, window.livekitClient,
+        window.LiveKit, window.Livekit, window.LK
+      ];
+      for (const x of cands) {
+        if (!x) continue;
+        // مباشرة أو عبر default
+        if (typeof x.connect === 'function') return x;
+        if (x.default && typeof x.default.connect === 'function') return x.default;
+        // بعض البنايات تُسقط تحت خاصية LiveKit
+        if (x.LiveKit && typeof x.LiveKit.connect === 'function') return x.LiveKit;
+      }
+      return null;
+    }
+
+    async function ensureLiveKit() {
+      // 1) حاول من الـUMD المحمّل (مسارك أو jsDelivr)
+      let LK = pickGlobalLK();
+      if (LK) return LK;
+
+      // 2) fallback: استيراد ESM من jsDelivr (مسموح بـ script-src لديك)
+      const modUrls = [
+        'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.min.js',
+        'https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.min.js'
+      ];
+      for (const url of modUrls) {
+        try {
+          const mod = await import(/* @vite-ignore */ url);
+          if (typeof mod?.connect === 'function') return mod;
+          if (mod?.default && typeof mod.default.connect === 'function') return mod.default;
+        } catch (_) {}
+      }
+
+      // لو وصلنا هنا؛ لا توجد مكتبة
+      throw new Error('LiveKit library did not load');
     }
 
     async function preflightMedia(){
@@ -331,13 +361,10 @@
         // أطلب إذن المايك/الكاميرا لإظهار الـ Prompt
         await preflightMedia();
 
-        const LK = getLK();
-        if (!LK) throw new Error('LiveKit library did not load');
-
-        // في UMD: التصدير يكون تحت LivekitClient (حسب الوثائق)
-        const connect = LK.connect || LK.default?.connect;
-        const createLocalTracks = LK.createLocalTracks || LK.default?.createLocalTracks;
-        const RoomEvent = LK.RoomEvent || LK.default?.RoomEvent;
+        const LK = await ensureLiveKit();
+        const connect = LK.connect;
+        const createLocalTracks = LK.createLocalTracks;
+        const RoomEvent = LK.RoomEvent;
 
         if (typeof connect !== 'function') throw new Error('LK.connect not available');
 

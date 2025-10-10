@@ -1,8 +1,8 @@
 // functions/vendor/[file].js
 export async function onRequest(context) {
-  const { file } = context.params; // مثلا: "livekit-client.umd.min"
-  // نسمح فقط بالاسم المطلوب لأمان أعلى
-  if (file !== 'livekit-client.umd.min') {
+  const { file } = context.params;            // مثال: "livekit-client.umd.min.js"
+  // اسم واحد مسموح به: livekit-client.umd.min.js
+  if (!file || !/^livekit-client(\.umd)?\.min\.js$/i.test(file)) {
     return new Response('Not found', { status: 404 });
   }
 
@@ -17,8 +17,8 @@ export async function onRequest(context) {
     try {
       const up = await fetch(url, { cf: { cacheEverything: true, cacheTtl: 86400 } });
       if (up.ok) {
-        const body = await up.arrayBuffer();
-        return new Response(body, {
+        // مرِّر المحتوى كما هو مع MIME صحيح
+        return new Response(await up.arrayBuffer(), {
           headers: {
             'content-type': 'application/javascript; charset=utf-8',
             'cache-control': 'public, max-age=86400, s-maxage=604800, immutable',

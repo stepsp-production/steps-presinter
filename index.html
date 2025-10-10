@@ -5,11 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Steps Co VIP Player</title>
 
-  <!-- HLS.js ثابت -->
+  <!-- HLS.js فقط (dash/youtube/vimeo غير ضرورية هنا لتقليل مشاكل CSP) -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js" crossorigin="anonymous"></script>
 
-  <!-- نحاول تحميل LiveKit UMD مبكراً؛ إن فشل سنعالج ديناميكياً داخل الكود -->
-  <script src="https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js" crossorigin="anonymous"></script>
+  <!-- نحمّل LiveKit عبر jsDelivr كـ ES Module، ونضعه على window.LiveKit -->
+  <script type="module">
+    try {
+      const LKC = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/+esm');
+      // اجعله متاحًا عالميًا (سواء كان التصدير قياسي أو default)
+      window.LiveKit = LKC?.default && typeof LKC.default === 'object' ? LKC.default : LKC;
+    } catch (e) {
+      // سنحاول مرة أخرى داخل ensureLiveKit، لا حاجة لكسر الصفحة
+      console.warn('LiveKit ESM import failed at parse-time; will retry on join.', e);
+    }
+  </script>
 
   <style>
     :root{
@@ -125,7 +134,7 @@
 
   <script>
     /* ============ إعدادات ============ */
-    const API_BASE = 'https://steps-livekit-api.onrender.com';   // عدّلها عند الحاجة
+    const API_BASE = 'https://steps-livekit-api.onrender.com';   // عدّلها إذا لزم
     const HLS_BASE = 'https://hls-proxy.it-f2c.workers.dev';
 
     const SOURCES = {
@@ -151,44 +160,31 @@
 
     /* ====== أدوات مساعدة ====== */
     function pickLK(ns){
-      // ارجع كائناً يحوي connect بأي شكل محتمل
       if (!ns) return null;
       if (typeof ns.connect === 'function') return ns;
       if (ns.default && typeof ns.default.connect === 'function') return ns.default;
-      if (ns.LivekitClient && typeof ns.LivekitClient.connect === 'function') return ns.LivekitClient;
-      if (ns.LiveKitClient && typeof ns.LiveKitClient.connect === 'function') return ns.LiveKitClient;
       if (ns.LiveKit && typeof ns.LiveKit.connect === 'function') return ns.LiveKit;
       if (ns.livekit && typeof ns.livekit.connect === 'function') return ns.livekit;
       if (ns.livekitClient && typeof ns.livekitClient.connect === 'function') return ns.livekitClient;
       return null;
     }
 
+    const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+
     async function ensureLiveKit(){
-      // 1) أي كائن متاح على window
-      let LK = pickLK(window);
-      if (LK) return LK;
-
-      // 2) محاولة استيراد ESM من jsDelivr (مسموح في CSP)
-      try{
-        const mod = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/+esm');
-        LK = pickLK(mod) || pickLK(mod.default) || mod;
-        if (LK && typeof LK.connect==='function') { window.LiveKit = LK; return LK; }
-      }catch(_){}
-
-      // 3) محاولة حقن سكربت UMD من CDN (لو حُجب أول تحميل)
-      try{
-        await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
-        LK = pickLK(window);
+      // امنح الـ module المستورد وقتًا ليحمّل
+      for (let i=0;i<30;i++){ // ~3 ثوانٍ
+        const LK = pickLK(window.LiveKit || window);
         if (LK) return LK;
-      }catch(_){}
-
-      // 4) محاولة محلية (لو عندك Functions على /vendor/)
+        await sleep(100);
+      }
+      // محاولة استيراد ESM مرة أخرى (قد يكون الـinline module مُنع من الـCSP)
       try{
-        await new Promise((res,rej)=>{ const s=document.createElement('script'); s.src='/vendor/livekit-client.umd.min.js'; s.onload=res; s.onerror=rej; document.head.appendChild(s); });
-        LK = pickLK(window);
-        if (LK) return LK;
+        const mod = await import('https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/+esm');
+        const LK = pickLK(mod) || pickLK(mod.default) || mod;
+        if (LK && (LK.connect || LK.default?.connect)) { window.LiveKit = LK; return LK; }
       }catch(_){}
-
+      // لا نستخدم cdn.livekit.io ولا /vendor لتفادي أخطاء DNS/MIME
       throw new Error('LiveKit library did not load');
     }
 
@@ -333,9 +329,9 @@
         if(!started) startBtn.click();
 
         const LK = await ensureLiveKit();
-        const connect = LK.connect || (LK.default && LK.default.connect);
-        const createLocalTracks = LK.createLocalTracks || (LK.default && LK.default.createLocalTracks);
-        const RoomEvent = LK.RoomEvent || (LK.default && LK.default.RoomEvent);
+        const connect = LK.connect || LK.default?.connect;
+        const createLocalTracks = LK.createLocalTracks || LK.default?.createLocalTracks;
+        const RoomEvent = LK.RoomEvent || LK.default?.RoomEvent;
 
         if (typeof connect !== 'function') throw new Error('LK.connect not available');
 

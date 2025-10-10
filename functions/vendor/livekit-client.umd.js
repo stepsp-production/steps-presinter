@@ -6,7 +6,6 @@ export async function onRequest() {
     'https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
     'https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js',
   ];
-
   for (const url of cdns) {
     try {
       const r = await fetch(url, { cf: { cacheEverything: true, cacheTtl: 86400 } });

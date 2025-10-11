@@ -178,43 +178,40 @@
   </script>
 
   <!-- تحميل LiveKit من نطاقك فقط -->
-  <script>
-    async function loadScript(src){
-      return new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = src; s.async = true; s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
-    async function ensureLiveKit(){
-      const pick = ()=> window.Livekit || window.LiveKit || window.livekit;
-      if (pick()) return pick();
-      try{ await loadScript('/vendor/livekit-client.umd.min.js'); }catch(_){}
-      const LK = pick();
-      if (!LK || (typeof LK.connect !== 'function' && typeof LK.Room !== 'function')) {
-        showBanner('تعذّر تحميل LiveKit من /vendor — تأكد من Functions وContent-Type');
-        throw new Error('LiveKit library did not load');
-      }
-      return LK;
-    }
-  </script>
+  <!-- بدل الـCDN -->
+<script src="/vendor/hls.min.js"></script>
+<script>
+  async function loadScript(src){
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.async = true; s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  async function ensureLiveKit(){
+    if (window.LiveKit) return window.LiveKit;
+    await loadScript('/vendor/livekit-client.umd.min.js');
+    if (!window.LiveKit) throw new Error('LiveKit library did not load');
+    return window.LiveKit;
+  }
+</script>
 
   <!-- ===== مصادر البث + قائمة القنوات ===== -->
   <script>
-    (function(){
-      const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
-      const build=(p)=>BASE?`${BASE}${p}`:p;
-
-      window.sources={
-        main:build("/hls/live/playlist.m3u8"),
-        cam1:build("/hls/lastone/playlist.m3u8"),
-        cam2:build("/hls/live2/playlist.m3u8"),
-        cam3:build("/hls/live3/playlist.m3u8"),
-        cam4:build("/hls/live4/playlist.m3u8"),
-        cam5:build("/hls/live5/playlist.m3u8"),
-        cam6:build("/hls/live6/playlist.m3u8"),
-        cam7:build("/hls/live7/playlist.m3u8")
-      };
+  window.HLS_BASE = "/hls"; // لا تضع دومين هنا
+  (function(){
+    const BASE = (window.HLS_BASE||"").replace(/\/$/,"");
+    const build = (p)=> `${BASE}${p}`;
+    window.sources = {
+      main: build("/live/playlist.m3u8"),
+      cam1: build("/lastone/playlist.m3u8"),
+      cam2: build("/live2/playlist.m3u8"),
+      cam3: build("/live3/playlist.m3u8"),
+      cam4: build("/live4/playlist.m3u8"),
+      cam5: build("/live5/playlist.m3u8"),
+      cam6: build("/live6/playlist.m3u8"),
+      cam7: build("/live7/playlist.m3u8"),
+    };
 
       window.channelMap=[
         {id:'main',label:'MAIN',src:sources.main},

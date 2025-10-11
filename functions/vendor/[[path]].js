@@ -1,42 +1,26 @@
-// Cloudflare Pages Functions: /vendor/*
-//
-// يغطي:
-//   /vendor/hls.min.js
-//   /vendor/livekit-client.umd.min.js
-//   /vendor/ping.js   (اختياري لفحص الصحة)
-
 const JS_HEADERS = {
   'Content-Type': 'application/javascript; charset=utf-8',
   'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
   'X-Content-Type-Options': 'nosniff',
 };
 
-async function proxyFirstOk(urls, cfCache = true) {
+async function proxyFirstOk(urls) {
   for (const url of urls) {
     try {
-      const res = await fetch(url, cfCache ? { cf: { cacheEverything: true, cacheTtl: 86400 } } : {});
-      if (res.ok) {
-        // نُعيد البودي كما هو مع هيدرز JS صحيحة
-        return new Response(res.body, { headers: JS_HEADERS });
-      }
-    } catch (_) { /* تجاهل واستمر */ }
+      const r = await fetch(url, { cf: { cacheEverything: true, cacheTtl: 86400 } });
+      if (r.ok) return new Response(r.body, { headers: JS_HEADERS });
+    } catch (_) {}
   }
-  return new Response('CDN fetch failed', { status: 502 });
+  return new Response('CDN fetch failed', { status: 502, headers: JS_HEADERS });
 }
 
-export async function onRequest(ctx) {
-  // param [[path]] يلتقط الباقي بعد /vendor/
-  // أمثلة:
-  //   /vendor/hls.min.js  => path: "hls.min.js"
-  //   /vendor/livekit-client.umd.min.js => path: "livekit-client.umd.min.js"
-  const p = (ctx?.params?.path || '').toString();
+export async function onRequest({ params }) {
+  const p = String(params?.path || '');
 
-  // فحص سريع: ping
   if (p === 'ping.js') {
     return new Response(`window.__VENDOR_PING__=true;`, { headers: JS_HEADERS });
   }
 
-  // HLS
   if (p === 'hls.min.js' || p === 'hls.js') {
     return proxyFirstOk([
       'https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js',
@@ -45,7 +29,6 @@ export async function onRequest(ctx) {
     ]);
   }
 
-  // LiveKit UMD
   if (p === 'livekit-client.umd.min.js' || p === 'livekit-client.umd.js') {
     return proxyFirstOk([
       'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
@@ -55,6 +38,5 @@ export async function onRequest(ctx) {
     ]);
   }
 
-  // غير معروف
-  return new Response('Not Found', { status: 404 });
+  return new Response('Not Found', { status: 404, headers: JS_HEADERS });
 }

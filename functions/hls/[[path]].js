@@ -1,42 +1,57 @@
-const JS_HEADERS = {
-  'Content-Type': 'application/javascript; charset=utf-8',
-  'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
-  'X-Content-Type-Options': 'nosniff',
-};
+export async function onRequest({ request, env, params }) {
+  const ORIGIN_BASE = (env.ORIGIN_BASE || '').replace(/\/+$/, '');
+  const UPSTREAM_PREFIX = (env.UPSTREAM_PREFIX || '/hls').replace(/\/+$/, '');
 
-async function proxyFirstOk(urls) {
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { cf: { cacheEverything: true, cacheTtl: 86400 } });
-      if (r.ok) return new Response(r.body, { headers: JS_HEADERS });
-    } catch (_) {}
-  }
-  return new Response('CDN fetch failed', { status: 502, headers: JS_HEADERS });
-}
+  if (!ORIGIN_BASE) return new Response('Missing ORIGIN_BASE', { status: 500 });
 
-export async function onRequest({ params }) {
-  const p = String(params?.path || '');
+  const sub = '/' + (params?.path || '');
+  const url = new URL(request.url);
+  const qs = url.search || '';
 
-  if (p === 'ping.js') {
-    return new Response(`window.__VENDOR_PING__=true;`, { headers: JS_HEADERS });
+  const upstreamPath = `${UPSTREAM_PREFIX}${sub}`.replace(/\/{2,}/g, '/');
+  const upstreamUrl = `${ORIGIN_BASE}${upstreamPath}${qs}`;
+
+  const fwd = {};
+  for (const h of ['range', 'user-agent', 'accept', 'accept-encoding', 'origin', 'referer']) {
+    const v = request.headers.get(h);
+    if (v) fwd[h] = v;
   }
 
-  if (p === 'hls.min.js' || p === 'hls.js') {
-    return proxyFirstOk([
-      'https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js',
-      'https://unpkg.com/hls.js@1.5.8/dist/hls.min.js',
-      'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js',
-    ]);
+  const up = await fetch(upstreamUrl, { headers: fwd });
+
+  const hdr = new Headers(up.headers);
+  hdr.set('Access-Control-Allow-Origin', '*');
+  hdr.delete('transfer-encoding');
+  hdr.set('Cache-Control', 'no-store');
+  hdr.set('X-Upstream-URL', upstreamUrl);
+
+  const isM3U8 = /\.m3u8(\?.*)?$/i.test(sub);
+
+  if (!up.ok) {
+    const body = await up.text().catch(() => '');
+    return new Response(body, { status: up.status, headers: hdr });
   }
 
-  if (p === 'livekit-client.umd.min.js' || p === 'livekit-client.umd.js') {
-    return proxyFirstOk([
-      'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
-      'https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js',
-      'https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
-      'https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js',
-    ]);
+  if (!isM3U8) {
+    return new Response(up.body, { status: 200, headers: hdr });
   }
 
-  return new Response('Not Found', { status: 404, headers: JS_HEADERS });
+  const text = await up.text();
+  const publicBase = `/hls${sub}${qs}`;
+  const parent = publicBase.replace(/\/[^/]*$/, '/');
+
+  const rewritten = text.split('\n').map((line) => {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) return line;
+    if (/^https?:\/\//i.test(t)) {
+      try {
+        const u = new URL(t);
+        return `/hls${u.pathname}${u.search || ''}`;
+      } catch { return line; }
+    }
+    return parent + t;
+  }).join('\n');
+
+  hdr.set('Content-Type', 'application/vnd.apple.mpegurl');
+  return new Response(rewritten, { status: 200, headers: hdr });
 }

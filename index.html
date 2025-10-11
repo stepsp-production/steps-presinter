@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Steps Co VIP Player</title>
+
+  <!-- HLS.js (للـ video) -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+  <!-- (اختياري) يوتيوب وفيميو إن لزم -->
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="https://player.vimeo.com/api/player.js"></script>
+
+  <link rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
+
+  <style>
+    :root{ --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
+           --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26; }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+
+    #playerContainer{position:relative;width:100vw;height:100vh}
+    .videoFrame{position:absolute;top:0;right:0;width:100%;height:100%;background:#000;overflow:hidden}
+
+    /* المعاينة المصغرة */
+    #mainPreview{position:absolute;top:16px;right:20px;width:22%;height:24%;z-index:6;border:1px solid #fff2;border-radius:18px;cursor:pointer;transition:transform .18s,box-shadow .18s,width .18s,height .18s,top .18s,right .18s,left .18s}
+    #mainPreview:hover{box-shadow:0 10px 30px #0008}
+    #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
+
+    /* تقسيم */
+    .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
+    .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
+
+    .split.mode1 #mainPreview video,.split.mode1 #activeCam video{object-fit:contain}
+    .split.mode2 #mainPreview video,.split.mode2 #activeCam video{object-fit:contain; transform:scale(1.08); transform-origin:center}
+    .split.mode3 #mainPreview video,.split.mode3 #activeCam video{object-fit:cover}
+
+    .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
+    .main-full #activeCam{display:none}
+    .main-full.cover-one #mainPreview video{object-fit:cover}
+
+    .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
+    .split .hint,.main-full .hint{display:none}
+
+    /* أدوات وواجهة مخفية تلقائياً */
+    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
+    #utilityControls{top:10px;right:10px}
+    #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
+    #globalControls.hidden{display:none}
+    button{-webkit-tap-highlight-color:transparent;appearance:none;border:0;outline:0;cursor:pointer;background:var(--btn-bg);color:var(--btn-txt);padding:11px 12px;font-size:12px;font-weight:800;border-radius:12px;letter-spacing:.2px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 18px #000a,0 0 0 0 rgba(0,193,154,.28);transition:transform .12s,box-shadow .12s,background .12s}
+    button:hover{background:var(--btn-bg-h);box-shadow:0 12px 26px #000c,0 0 0 6px rgba(0,193,154,.28)}
+    button:active{background:var(--btn-bg-a);transform:translateY(1px)}
+    #scrub{-webkit-appearance:none;appearance:none;width:320px;height:6px;border-radius:999px;background:#ffffff30;outline:none;margin:0 8px}
+    #scrub::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid #0006;cursor:pointer}
+    #timeLabel{color:#fff;font-size:12px;min-width:108px;text-align:center}
+
+    #gatePlay{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2))}
+    #gatePlay.hidden{display:none}
+    .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bد);color:#fff;background:#111a;font-size:18px}
+    #startBtn{min-width:160px}
+
+    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;}
+    #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
+    #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
+    .stream-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20); backdrop-filter: blur(2px); transition:background .12s, border-color .12s, transform .06s;}
+    .stream-item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
+    .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
+    .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
+
+    .ui-hidden #streamPanel,.ui-hidden #utilityControls,.ui-hidden #globalControls,.ui-hidden #lkPanel{opacity:0; pointer-events:none}
+    .ui-visible #streamPanel,.ui-visible #utilityControls,.ui-visible #globalControls,.ui-visible #lkPanel{opacity:1; pointer-events:auto}
+
+    /* LiveKit */
+    #lkPanel{position:absolute; bottom:14px; right:14px; z-index:20; background:var(--panel-bg); border:1px solid var(--panel-bd); border-radius:14px; padding:10px; backdrop-filter: blur(8px); display:flex; flex-direction:column; gap:8px; width:min(92vw,520px); transition:opacity .18s;}
+    #lkPanel h3{margin:0;color:#fff;font-size:13px}
+    #lkGrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; max-height:34vh; overflow:auto}
+    .tile{position:relative; background:#0b0b0f; border:1px solid #ffffff22; border-radius:10px; overflow:hidden; min-height:90px}
+    .tile video{width:100%;height:100%;object-fit:cover;display:block}
+    .badge{position:absolute; left:6px; top:6px; background:#000a; color:#fff; font-size:10px; padding:2px 6px; border-radius:999px; border:1px solid #fff2}
+    #lkControls{display:flex; gap:6px; flex-wrap:wrap}
+    #lkControls select, #lkControls input, #lkControls .text{font-size:11px}
+    #lkControls select, #lkControls input{background:#10151f; color:#fff; border:1px solid #ffffff22; border-radius:10px; padding:8px}
+    #lkHint{color:#eaeaf0b3; font-size:11px}
+
+    @media (orientation: portrait){
+      #mainPreview{top:12px;right:14px;width:58vw;height:36vh;border-radius:18px}
+      #globalControls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);left:50%;transform:translateX(-50%);width:min(94vw,560px);padding:8px 10px;z-index:9999}
+      #scrub{width:clamp(140px,56vw,380px)}
+      #streamPanel{width:190px}
+    }
+
+    #sysBanner{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:30;background:#111a;color:#fff;border:1px solid #ffffff2a;border-radius:999px;padding:6px 10px;font-size:12px;display:none}
+    #sysBanner.show{display:inline-block}
+  </style>
+</head>
+<body>
+  <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
+    <div id="sysBanner"></div>
+
+    <aside id="streamPanel" aria-label="مصادر البث">
+      <div class="panel-title">SOURCES</div>
+      <ul id="streamList"></ul>
+    </aside>
+
+    <div id="activeCam" class="videoFrame" aria-label="الكاميرا النشطة"></div>
+    <div id="mainPreview" class="videoFrame" title="انقر للتكبير/التصغير" aria-label="المعاينة الرئيسية المصغّرة"></div>
+    <div class="hint">انقر على المعاينة للتكبير • أو اضغط F</div>
+
+    <div id="gatePlay" role="dialog" aria-modal="true" aria-label="بدء التشغيل">
+      <div class="gate-card">
+        <div class="icon">▶</div>
+        <div>
+          <div style="color:#fff;font-weight:800;margin-bottom:6px">ابدأ التشغيل والمزامنة</div>
+          <div style="font-size:12px;color:#eaeaf0b3">سيظهر شريط التقديم/التأخير بعد الضغط على تشغيل</div>
+        </div>
+        <button id="startBtn" aria-label="ابدأ التشغيل الآن">تشغيل/بدء المزامنة</button>
+      </div>
+    </div>
+
+    <div id="lkPanel" aria-label="LiveKit Panel">
+      <h3>الغرفة المباشرة (LiveKit)</h3>
+      <div id="lkControls">
+        <label class="text" for="lkRoom">الغرفة:</label>
+        <select id="lkRoom"><option>studio-1</option><option>studio-2</option><option>studio-3</option><option>studio-4</option><option>studio-5</option><option>studio-6</option><option>studio-7</option><option>studio-8</option><option>studio-9</option><option>studio-10</option></select>
+        <input id="lkName" placeholder="اسم العرض (اختياري)" />
+        <button id="lkJoin">انضم</button>
+        <button id="lkLeave" disabled>مغادرة</button>
+        <button id="lkToggleCam" disabled>الكاميرا</button>
+        <button id="lkToggleMic" disabled>المايك</button>
+        <span id="lkHint" class="text">اضغط “تشغيل” أولاً للسماح للمتصفح.</span>
+      </div>
+      <div id="lkGrid" aria-live="polite"></div>
+    </div>
+
+    <div id="utilityControls" role="toolbar" aria-label="أدوات">
+      <button id="btnSplit" aria-label="تبديل وضع التقسيم" title="تقسيم">تقسيم</button>
+      <button id="btnFill"  aria-label="تبديل ملء المحتوى" title="ملء">ملء</button>
+      <button id="btnSound" aria-label="تشغيل/إيقاف الصوت" title="صوت">🔊/🔇</button>
+    </div>
+
+    <div id="globalControls" class="hidden" role="group" aria-label="تحكم موحّد">
+      <button id="gBack" title="⏪ -5s">⏪ 5s</button>
+      <button id="gPlay" title="⏯">⏯</button>
+      <button id="gFwd"  title="+5s ⏩">5s ⏩</button>
+      <input id="scrub" type="range" min="0" max="0" value="0" step="0.01" aria-label="شريط التقدم">
+      <div id="timeLabel">00:00 / 00:00</div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "https://steps-livekit-api.onrender.com";
+    // اترك HLS_BASE فارغ لاستخدام Functions على نفس الدومين (/hls/...)
+    window.HLS_BASE = "";
+
+    const banner = document.getElementById('sysBanner');
+    const showBanner = (msg)=>{ banner.textContent = msg; banner.classList.add('show'); setTimeout(()=>banner.classList.remove('show'), 5000); };
+  </script>
+
+  <!-- تحميل LiveKit من نطاقك فقط -->
+  <script>
+    async function loadScript(src){
+      return new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = src; s.async = true; s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    async function ensureLiveKit(){
+      const pick = ()=> window.Livekit || window.LiveKit || window.livekit;
+      if (pick()) return pick();
+      try{ await loadScript('/vendor/livekit-client.umd.min.js'); }catch(_){}
+      const LK = pick();
+      if (!LK || (typeof LK.connect !== 'function' && typeof LK.Room !== 'function')) {
+        showBanner('تعذّر تحميل LiveKit من /vendor — تأكد من Functions وContent-Type');
+        throw new Error('LiveKit library did not load');
+      }
+      return LK;
+    }
+  </script>
+
+  <!-- مصادر البث عبر Functions /hls/... -->
+  <script>
+    (function(){
+      const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
+      const build=(p)=>BASE?`${BASE}${p}`:p;
+
+      window.sources={
+        main:build("/hls/live/playlist.m3u8"),
+        cam1:build("/hls/lastone/playlist.m3u8"),
+        cam2:build("/hls/live2/playlist.m3u8"),
+        cam3:build("/hls/live3/playlist.m3u8"),
+        cam4:build("/hls/live4/playlist.m3u8"),
+        cam5:build("/hls/live5/playlist.m3u8"),
+        cam6:build("/hls/live6/playlist.m3u8"),
+        cam7:build("/hls/live7/playlist.m3u8")
+      };
+
+      window.channelMap=[
+        {id:'main',label:'MAIN',src:sources.main},
+        {id:'cam1',label:'CAM1',src:sources.cam1},
+        {id:'cam2',label:'CAM2',src:sources.cam2},
+        {id:'cam3',label:'CAM3',src:sources.cam3},
+        {id:'cam4',label:'CAM4',src:sources.cam4},
+        {id:'cam5',label:'CAM5',src:sources.cam5},
+        {id:'cam6',label:'DRONE',src:sources.cam6},
+        {id:'cam7',label:'SINEFLEX',src:sources.cam7}
+      ];
+    })();
+  </script>
+
+  <!-- مشغّل/واجهة (كما عندك مع نفس الميزات) -->
+  <script>
+    const SAFETY_EDGE=0.80, SHOW_MIN_BUF=1.25, STARVED_RESEEK=0.25;
+    const hasUrl=(u)=>typeof u==='string' && /(https?:\/\/[^/]+)?\/hls\/.+\.m3u8(\?.*)?$/i.test(u);
+    function isAvc(l){return /avc1/i.test(l?.codecs||l?.codecsVideo||"");}
+    function pickBestAvc(levels,capHeight=480){ if(!levels?.length) return -1; const avc=levels.map((l,i)=>({i,h:l.height||0,avc:isAvc(l)})).filter(x=>x.avc); if(!avc.length) return 0; let c=avc.filter(x=>x.h&&x.h<=capHeight); if(!c.length)c=avc; c.sort((a,b)=>a.h-b.h); return c[c.length-1].i; }
+    function highestAvcIndex(levels){let m=-1;(levels||[]).forEach((l,i)=>{if(isAvc(l))m=i;});return m>=0?m:((levels&&levels.length)?levels.length-1:-1);}
+    const HLS_CFG={lowLatencyMode:false,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6,maxLiveSyncPlaybackRate:1.0,maxBufferLength:18,backBufferLength:14,maxBufferSize:40*1000*1000,capLevelToPlayerSize:true,enableWorker:true,maxBufferHole:0.15,maxSeekHole:0.25,nudgeOffset:0.12,nudgeMaxRetry:10,abrMaxWithRealBitrate:true,fragLoadingMaxRetry:6,manifestLoadingMaxRetry:6,levelLoadingMaxRetry:5,fragLoadingRetryDelay:350,manifestLoadingRetryDelay:500,levelLoadingRetryDelay:500,fragLoadingTimeOut:10000,manifestLoadingTimeOut:8000,levelLoadingTimeOut:8000,xhrSetup:(xhr)=>{try{xhr.withCredentials=false;}catch(e){}}};
+    function getSeekableRange(v){try{const r=v.seekable;if(!r||!r.length)return null;return{start:r.start(r.length-1),end:r.end(r.length-1)};}catch(e){return null;}}
+    function capLiveEdge(v,t){const m=getSeekableRange(v); if(!m) return t; return Math.min(t, m.end - SAFETY_EDGE);}
+    function bufferedAhead(v){try{const b=v.buffered;const t=v.currentTime||0;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);if(t>=s&&t<=e)return Math.max(0,e-t);} }catch(e){} return 0;}
+    function containsTime(v,t){try{const b=v.buffered;for(let i=0;i<b.length;i++){if(t>=b.start(i)&&t<=b.end(i))return{start:b.start(i),end:b.end(i)};} }catch(e){} return null;}
+    function nearestBufferedTime(v,t){try{const b=v.buffered;let best=null,dm=1e9;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);const cand=(t<s)?s:(t>e?e:t);const d=Math.abs(cand-t);if(d<dm){dm=d;best=cand;}} return best;}catch(e){return null;}}
+    async function waitBufferedAt(v,t,minAhead=SHOW_MIN_BUF,timeout=6000){ t=capLiveEdge(v,t); const t0=performance.now(); return new Promise(res=>{(function loop(){const r=containsTime(v,t); if(r&&r.end-t>=minAhead) return res(true); if(performance.now()-t0>timeout) return res(false); setTimeout(loop,90);})();});}
+    function snapIntoBuffer(v,t){t=capLiveEdge(v,t); const r=containsTime(v,t); if(r) return t; const near=nearestBufferedTime(v,t); return typeof near==='number'?near:t;}
+    function attachHlsWithAvc(video,url){const hls=new Hls({...HLS_CFG}); video.__hls=hls; hls.attachMedia(video); hls.on(Hls.Events.MEDIA_ATTACHED,()=>{hls.loadSource(url);}); hls.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{try{const lv=data?.levels||[];const s=pickBestAvc(lv,480);const mx=highestAvcIndex(lv);if(s>=0){hls.startLevel=s;hls.currentLevel=s;hls.nextLevel=s;}if(mx>=0){hls.autoLevelCapping=mx;}}catch(e){}}); hls.on(Hls.Events.ERROR,(_,err)=>{ if(err?.fatal){ try{hls.destroy();}catch(e){} try{attachHlsWithAvc(video,url);}catch(_){ } }}); const starve=()=>{try{const m=getSeekableRange(video); if(!m) return; const near=Math.max(m.start,m.end - SAFETY_EDGE - STARVED_RESEEK); video.currentTime=snapIntoBuffer(video,near); video.play().catch(()=>{});}catch(e){}}; video.addEventListener('waiting',()=>{ if(bufferedAhead(video)<0.3) starve(); }); video.addEventListener('stalled',()=>{ if(bufferedAhead(video)<0.3) starve(); }); return hls;}
+    function createVideoElement(url){const wrap=document.createElement('div'); wrap.className='layer'; wrap.style.cssText='position:absolute;inset:0;opacity:0'; const v=document.createElement('video'); v.playsInline=true; v.muted=true; v.controls=false; v.preload='auto'; v.crossOrigin='anonymous'; v.style.cssText='width:100%;height:100%;object-fit:contain'; wrap.appendChild(v); if(hasUrl(url) && window.Hls && Hls.isSupported()){attachHlsWithAvc(v,url);} else if(hasUrl(url) && v.canPlayType('application/vnd.apple.mpegURL')){v.src=url;} else {v.src=url;} return {wrap, video:v};}
+
+    const root=document.getElementById('playerContainer'), mainContainer=document.getElementById('mainPreview'), camContainer=document.getElementById('activeCam'), gatePlay=document.getElementById('gatePlay'), startBtn=document.getElementById('startBtn'), btnSplit=document.getElementById('btnSplit'), btnFill=document.getElementById('btnFill'), btnSound=document.getElementById('btnSound'), globalControls=document.getElementById('globalControls'), gPlay=document.getElementById('gPlay'), gBack=document.getElementById('gBack'), gFwd=document.getElementById('gFwd'), scrub=document.getElementById('scrub'), timeLabel=document.getElementById('timeLabel'), streamPanel=document.getElementById('streamPanel'), streamList=document.getElementById('streamList');
+
+    let started=false, splitMode=0, isMainFull=false; let mainPlayer, activePlayer, currentCam='cam2'; let ticker=null, isScrubbing=false; const playersCache=new Map();
+    const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
+    function mountTo(c,n){c.appendChild(n);}
+    function initMain(){const {wrap,video}=createVideoElement(sources.main); mountTo(mainContainer,wrap); wrap.style.opacity='1'; mainPlayer=video;}
+    function getOrCreateCam(id){let ent=playersCache.get(id); if(ent) return ent; const {wrap,video}=createVideoElement(sources[id]); mountTo(camContainer,wrap); const rec={wrap,video,ready:false}; video.addEventListener('canplay',()=>{rec.ready=true;},{once:true}); playersCache.set(id,rec); return rec;}
+    function buildStreamList(){streamList.innerHTML=''; (window.channelMap||[]).filter(ch=>hasUrl(ch.src)).forEach(ch=>{const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam=ch.id; const name=document.createElement('div'); name.className='stream-name'; name.textContent=ch.label; li.appendChild(name); li.addEventListener('click',()=>setActiveCamSmooth(ch.id)); streamList.appendChild(li);}); document.addEventListener('keydown',(e)=>{ if(e.target && ['INPUT','TEXTAREA'].includes(e.target.tagName)) return; const items=[...document.querySelectorAll('.stream-item')]; const n=Number(e.key); if(n>=1 && n<=items.length) items[n-1].click();});}
+    function markActiveList(){document.querySelectorAll('.stream-item').forEach(el=>{el.classList.toggle('active',el.dataset.cam===currentCam);});}
+    function initOnce(){initMain(); const first=getOrCreateCam(currentCam); first.wrap.style.opacity='1'; activePlayer=first.video; buildStreamList(); markActiveList();}
+    initOnce();
+    async function setActiveCamSmooth(id){ if(!sources[id] || id===currentCam) return; currentCam=id; markActiveList(); const target=getOrCreateCam(id); const v=target.video, w=target.wrap; if(!target.ready) await new Promise(r=>v.addEventListener('canplay',r,{once:true})); let T=capLiveEdge(v,(mainPlayer.currentTime||0)); await waitBufferedAt(v,T,SHOW_MIN_BUF,6000); v.currentTime=snapIntoBuffer(v,T); try{await v.play();}catch(_){ } w.style.opacity='1'; const old=activePlayer, oldWrap=old?old.parentElement:null; setTimeout(()=>{if(oldWrap){oldWrap.style.opacity='0';} activePlayer=v;},180);}
+    let uiTimer=null; function showUI(){root.classList.remove('ui-hidden');root.classList.add('ui-visible');clearTimeout(uiTimer);uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500);} ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true})); [streamPanel,globalControls,document.getElementById('utilityControls'),document.getElementById('lkPanel')].forEach(el=>{el.addEventListener('mouseenter',()=>{clearTimeout(uiTimer);root.classList.remove('ui-hidden');root.classList.add('ui-visible');}); el.addEventListener('mouseleave',showUI);}); setTimeout(showUI,800);
+    async function startPlayback(){ if(started) return; started=true; gatePlay.classList.add('hidden'); globalControls.classList.remove('hidden'); try{await mainPlayer.play();}catch(_){ } try{await activePlayer.play();}catch(_){ } setTimeout(async()=>{const m=getSeekableRange(mainPlayer); if(m){ mainPlayer.currentTime=Math.max(m.start,m.end - SAFETY_EDGE); }},300); startTimeTicker(); }
+    function startTimeTicker(){ if(ticker) return; ticker=setInterval(()=>{ if(isScrubbing) return; let d=0, ct=mainPlayer.currentTime||0; const r=mainPlayer.seekable; if(r&&r.length) d=r.end(r.length-1); if(d&&isFinite(d)) scrub.max=d; scrub.value=ct||0; timeLabel.textContent=`${fmt(ct)} / ${fmt(d||0)}`; if(activePlayer && bufferedAhead(activePlayer)<0.30){ const m=getSeekableRange(activePlayer); if(m){ const near=Math.max(m.start,m.end - SAFETY_EDGE - STARVED_RESEEK); activePlayer.currentTime=snapIntoBuffer(activePlayer,near); } } },250); }
+    startBtn.addEventListener('click',startPlayback);
+    btnSplit.addEventListener('click',()=>{ splitMode=(splitMode+1)%4; root.classList.toggle('split',splitMode!==0); root.classList.remove('mode1','mode2','mode3'); if(splitMode===1) root.classList.add('mode1'); if(splitMode===2) root.classList.add('mode2'); if(splitMode===3) root.classList.add('mode3'); });
+    btnFill.addEventListener('click',()=>{ if(splitMode===0){ isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); }else{ splitMode=(splitMode===2)?3:2; root.classList.remove('mode1','mode2','mode3'); root.classList.add(splitMode===2?'mode2':'mode3'); root.classList.add('split'); }});
+    btnSound.addEventListener('click',()=>{ if(!started) return; mainPlayer.muted=!mainPlayer.muted; if(!mainPlayer.muted) mainPlayer.play().catch(()=>{}); });
+    const gSeek=(ofs)=>{ if(!started) return; const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs); mainPlayer.currentTime=t; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,t); };
+    gBack.addEventListener('click',()=>gSeek(-5)); gFwd.addEventListener('click',()=>gSeek(5));
+    gPlay.addEventListener('click',async()=>{ if(!started) return; if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}} else mainPlayer.pause(); });
+    scrub.addEventListener('input',()=>{ if(started) isScrubbing=true; });
+    scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(mainPlayer, parseFloat(scrub.value)||0); mainPlayer.currentTime=nt; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,nt); isScrubbing=false; });
+    document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
+    document.addEventListener('keydown',(e)=>{ if(e.key===' '||e.key==='Enter'){ e.preventDefault(); startPlayback(); } if(e.key==='S'||e.key==='s'){ btnSplit.click(); } if(e.key==='F'||e.key==='f'){ btnFill.click(); } if(e.key==='M'||e.key==='m'){ btnSound.click(); } if(e.key==='ArrowLeft'){ gBack.click(); } if(e.key==='ArrowRight'){ gFwd.click(); }});
+  </script>
+
+  <!-- LiveKit -->
+  <script>
+    const lkRoomSel=document.getElementById('lkRoom'), lkNameInput=document.getElementById('lkName'), lkJoinBtn=document.getElementById('lkJoin'), lkLeaveBtn=document.getElementById('lkLeave'), lkToggleCam=document.getElementById('lkToggleCam'), lkToggleMic=document.getElementById('lkToggleMic'), lkGrid=document.getElementById('lkGrid');
+    let lkRoom=null, localCamEnabled=true, localMicEnabled=true;
+
+    function addTrackTile(track,label){ const tile=document.createElement('div'); tile.className='tile'; const badge=document.createElement('div'); badge.className='badge'; badge.textContent=label; tile.appendChild(badge); const el=track.attach(); if(el instanceof HTMLVideoElement){el.playsInline=true; el.autoplay=true; el.muted=(label==='أنا');} tile.appendChild(el); lkGrid.appendChild(tile); return ()=>{try{track.detach().forEach(n=>n.remove());}catch(_){ } try{tile.remove();}catch(_){ }};}
+    function cleanupGrid(){ [...lkGrid.children].forEach(n=>n.remove()); }
+
+    async function fetchToken(room,name){
+      const payload={room,name};
+      const urls=[`${API_BASE}/api/livekit-token`, `${API_BASE}/api/token`, `${API_BASE}/api/join`];
+      for(const u of urls){ try{ const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(r.ok){ const data=await r.json(); const token=data.token||data.accessToken; const wsUrl=data.wsUrl||data.url||data.livekitUrl; if(token&&wsUrl) return {token,wsUrl}; } }catch(_){ } }
+      throw new Error('Token request failed');
+    }
+
+    async function joinLiveKit(){
+      try{
+        const LK = await ensureLiveKit();
+        if(!started) document.getElementById('startBtn').click();
+        const {token,wsUrl}=await fetchToken(lkRoomSel.value,lkNameInput.value.trim()||undefined);
+        lkRoom = await LK.connect(wsUrl, token, {autoSubscribe:true, stopLocalTrackOnUnpublish:true});
+        const tracks=await LK.createLocalTracks({audio:true, video:{facingMode:'user'}});
+        for(const t of tracks) await lkRoom.localParticipant.publishTrack(t);
+        for(const pub of lkRoom.localParticipant.trackPublications.values()){ if(pub.track) addTrackTile(pub.track,'أنا'); }
+        const unsub=new Map();
+        lkRoom.on(LK.RoomEvent.TrackSubscribed,(track,pub,participant)=>{const off=addTrackTile(track, participant.identity||'ضيف'); unsub.set(pub.sid,off);})
+              .on(LK.RoomEvent.TrackUnsubscribed,(_t,pub)=>{const off=unsub.get(pub.sid); if(off){try{off();}catch(_){ } unsub.delete(pub.sid);}})
+              .on(LK.RoomEvent.Disconnected,()=>{cleanupGrid();});
+        lkJoinBtn.disabled=true; lkLeaveBtn.disabled=false; lkToggleCam.disabled=false; lkToggleMic.disabled=false;
+      }catch(err){ console.error('joinLiveKit error',err); alert('تعذّر الانضمام: '+(err?.message||err)); }
+    }
+    async function leaveLiveKit(){ if(!lkRoom) return; try{await lkRoom.disconnect();}catch(_){ } lkRoom=null; cleanupGrid(); lkJoinBtn.disabled=false; lkLeaveBtn.disabled=true; lkToggleCam.disabled=true; lkToggleMic.disabled=true; localCamEnabled=true; localMicEnabled=true; }
+    lkJoinBtn.addEventListener('click',joinLiveKit);
+    lkLeaveBtn.addEventListener('click',leaveLiveKit);
+    lkToggleCam.addEventListener('click',async()=>{ if(!lkRoom) return; localCamEnabled=!localCamEnabled; try{await lkRoom.localParticipant.setCameraEnabled(localCamEnabled);}catch(_){ } lkToggleCam.textContent=localCamEnabled?'الكاميرا':'تشغيل الكاميرا'; });
+    lkToggleMic.addEventListener('click',async()=>{ if(!lkRoom) return; localMicEnabled=!localMicEnabled; try{await lkRoom.localParticipant.setMicrophoneEnabled(localMicEnabled);}catch(_){ } lkToggleMic.textContent=localMicEnabled?'المايك':'تشغيل المايك'; });
+  </script>
+
+  <!-- Debug -->
+  <script>
+    (function addHlsDebug(){
+      function wireDebug(video){const h=video&&video.__hls; if(!h) return;
+        h.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{console.log('[HLS] MANIFEST_PARSED levels=',(data&&data.levels||[]).map(l=>({h:l.height,codecs:l.codecs})));});
+        h.on(Hls.Events.LEVEL_LOADED,(_,data)=>{console.log('[HLS] LEVEL_LOADED targetduration=',data?.details?.targetduration,'frags=',data?.details?.fragments?.length);});
+        h.on(Hls.Events.ERROR,(_,err)=>{console.error('[HLS] ERROR',err?.type,err?.details,err);});
+      }
+      const mo=new MutationObserver(()=>{document.querySelectorAll('video').forEach(v=>{if(!v.__debugWired && v.__hls){v.__debugWired=true;wireDebug(v);}});});
+      mo.observe(document.body,{childList:true,subtree:true});
+    })();
+  </script>
+</body>
+</html>

@@ -3,20 +3,20 @@ export async function onRequest({ request, env, params }) {
   const UPSTREAM_PREFIX = (env.UPSTREAM_PREFIX || '/hls').replace(/\/+$/, '');
   if (!ORIGIN_BASE) return new Response('Missing ORIGIN_BASE', { status: 500 });
 
-  // CORS preflight
+  // Preflight
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: corsHeaders() });
   }
 
   const sub = '/' + (params?.path || '');
   const url = new URL(request.url);
-  const qs = url.search || '';
+  const qs  = url.search || '';
 
   const upstreamPath = `${UPSTREAM_PREFIX}${sub}`.replace(/\/{2,}/g, '/');
   const upstreamUrl  = `${ORIGIN_BASE}${upstreamPath}${qs}`;
   const originHost   = safeHost(ORIGIN_BASE);
 
-  // مرّر رؤوس مهمة + اضبط Host و Accept بوضوح
+  // رؤوس ممرّرة
   const fwd = new Headers();
   fwd.set('Host', originHost);
   fwd.set('Accept', 'application/vnd.apple.mpegurl, application/x-mpegURL, */*');
@@ -39,21 +39,19 @@ export async function onRequest({ request, env, params }) {
 
   const isM3U8 = /\.m3u8(\?.*)?$/i.test(sub);
 
-  // إن لم يكن OK نمرره كما هو (قد يكون 404/403 يعاد HTML)
   if (!up.ok) {
     const body = await up.text().catch(() => '');
-    // اضبط نوع المحتوى نصي حتى لا يحاول Hls.js تفسير HTML كـ m3u8
     if (isM3U8) hdr.set('Content-Type', 'text/plain; charset=utf-8');
     return new Response(body, { status: up.status, headers: hdr });
   }
 
-  // ملفات الميديا/القطاعات: مرر كما هي مع 200/206 وكل الرؤوس
+  // القطع/الميديا: مرّر كما هي (يحافظ على 200/206)
   if (!isM3U8) {
     if (!hdr.has('Accept-Ranges')) hdr.set('Accept-Ranges', 'bytes');
     return new Response(up.body, { status: up.status, headers: hdr });
   }
 
-  // ملفات m3u8: إعادة كتابة الروابط
+  // إعادة كتابة manifest
   const text = await up.text();
 
   const publicBase = `/hls${sub}${qs}`;
@@ -77,14 +75,10 @@ export async function onRequest({ request, env, params }) {
       const raw = line.trim();
       if (!raw) return line;
 
-      // أسطر البيانات (ليست تعليقات)
       if (!raw.startsWith('#')) return toHls(raw);
 
-      // أسطر التعليقات التي تحتوي URI="..."
       const m = raw.match(/URI="([^"]+)"/i);
-      if (m) {
-        return raw.replace(/URI="([^"]+)"/i, (_, uri) => `URI="${toHls(uri)}"`);
-      }
+      if (m) return raw.replace(/URI="([^"]+)"/i, (_, uri) => `URI="${toHls(uri)}"`);
       return line;
     })
     .join('\n');

@@ -1,45 +1,60 @@
-// يخدم ملفات JS من /vendor/* عبر نطاقك (أهمها livekit-client.umd.min.js)
-export async function onRequest(context) {
-  const { params } = context;
-  const path = params.path || ""; // مثال: "livekit-client.umd.min.js" أو "ping.js"
+// Cloudflare Pages Functions: /vendor/*
+//
+// يغطي:
+//   /vendor/hls.min.js
+//   /vendor/livekit-client.umd.min.js
+//   /vendor/ping.js   (اختياري لفحص الصحة)
 
-  // ping اختياري للفحص السريع
-  if (path === "ping.js") {
-    return new Response(`console.log("vendor ping ok")`, {
-      headers: {
-        "Content-Type": "application/javascript; charset=utf-8",
-        "Cache-Control": "public, max-age=300",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
-  }
+const JS_HEADERS = {
+  'Content-Type': 'application/javascript; charset=utf-8',
+  'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
+  'X-Content-Type-Options': 'nosniff',
+};
 
-  // نخدم مكتبة LiveKit فقط
-  if (!/^(livekit-client(\.umd)?(\.min)?\.js|livekit-client\.umd\.min\.js)$/i.test(path)) {
-    return new Response("Not found", { status: 404 });
-  }
-
-  const cdns = [
-    "https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js",
-    "https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js",
-    "https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.min.js",
-    "https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js",
-  ];
-
-  for (const url of cdns) {
+async function proxyFirstOk(urls, cfCache = true) {
+  for (const url of urls) {
     try {
-      const r = await fetch(url, {
-        cf: { cacheEverything: true, cacheTtl: 86400 },
-      });
-      if (r.ok) {
-        // أعد المحتوى كـ JS وليس HTML
-        const headers = new Headers(r.headers);
-        headers.set("Content-Type", "application/javascript; charset=utf-8");
-        headers.set("Cache-Control", "public, max-age=86400, s-maxage=604800, immutable");
-        headers.set("X-Content-Type-Options", "nosniff");
-        return new Response(r.body, { status: 200, headers });
+      const res = await fetch(url, cfCache ? { cf: { cacheEverything: true, cacheTtl: 86400 } } : {});
+      if (res.ok) {
+        // نُعيد البودي كما هو مع هيدرز JS صحيحة
+        return new Response(res.body, { headers: JS_HEADERS });
       }
-    } catch (_e) {/* جرّب التالي */}
+    } catch (_) { /* تجاهل واستمر */ }
   }
-  return new Response("CDN fetch failed", { status: 502 });
+  return new Response('CDN fetch failed', { status: 502 });
+}
+
+export async function onRequest(ctx) {
+  // param [[path]] يلتقط الباقي بعد /vendor/
+  // أمثلة:
+  //   /vendor/hls.min.js  => path: "hls.min.js"
+  //   /vendor/livekit-client.umd.min.js => path: "livekit-client.umd.min.js"
+  const p = (ctx?.params?.path || '').toString();
+
+  // فحص سريع: ping
+  if (p === 'ping.js') {
+    return new Response(`window.__VENDOR_PING__=true;`, { headers: JS_HEADERS });
+  }
+
+  // HLS
+  if (p === 'hls.min.js' || p === 'hls.js') {
+    return proxyFirstOk([
+      'https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js',
+      'https://unpkg.com/hls.js@1.5.8/dist/hls.min.js',
+      'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js',
+    ]);
+  }
+
+  // LiveKit UMD
+  if (p === 'livekit-client.umd.min.js' || p === 'livekit-client.umd.js') {
+    return proxyFirstOk([
+      'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js',
+      'https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
+      'https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js',
+    ]);
+  }
+
+  // غير معروف
+  return new Response('Not Found', { status: 404 });
 }

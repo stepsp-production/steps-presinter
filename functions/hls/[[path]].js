@@ -1,24 +1,42 @@
-// وكّيل HLS إلى ORIGIN_BASE + UPSTREAM_PREFIX
-export async function onRequest(context) {
-  const { env, request, params } = context;
-  const upstream = (env.ORIGIN_BASE || "").replace(/\/$/, ""); // مثال: https://several-congressional-modifications-valley.trycloudflare.com
-  const prefix   = (env.UPSTREAM_PREFIX || "").replace(/^\/?/, "/"); // مثال: /hls
-  const rest     = params.path || ""; // مثال: "live/playlist.m3u8"
+const JS_HEADERS = {
+  'Content-Type': 'application/javascript; charset=utf-8',
+  'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
+  'X-Content-Type-Options': 'nosniff',
+};
 
-  if (!upstream) return new Response("Missing ORIGIN_BASE", { status: 500 });
+async function proxyFirstOk(urls) {
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { cf: { cacheEverything: true, cacheTtl: 86400 } });
+      if (r.ok) return new Response(r.body, { headers: JS_HEADERS });
+    } catch (_) {}
+  }
+  return new Response('CDN fetch failed', { status: 502, headers: JS_HEADERS });
+}
 
-  const url = `${upstream}${prefix}/${rest}`;
-  const r = await fetch(url, {
-    method: request.method,
-    headers: request.headers,
-    redirect: "follow",
-    cf: { cacheEverything: true },
-  });
+export async function onRequest({ params }) {
+  const p = String(params?.path || '');
 
-  // مرر كل شيء، وأضف CORS احتياطيًا
-  const headers = new Headers(r.headers);
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Timing-Allow-Origin", "*");
+  if (p === 'ping.js') {
+    return new Response(`window.__VENDOR_PING__=true;`, { headers: JS_HEADERS });
+  }
 
-  return new Response(r.body, { status: r.status, headers });
+  if (p === 'hls.min.js' || p === 'hls.js') {
+    return proxyFirstOk([
+      'https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js',
+      'https://unpkg.com/hls.js@1.5.8/dist/hls.min.js',
+      'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js',
+    ]);
+  }
+
+  if (p === 'livekit-client.umd.min.js' || p === 'livekit-client.umd.js') {
+    return proxyFirstOk([
+      'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js',
+      'https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
+      'https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js',
+    ]);
+  }
+
+  return new Response('Not Found', { status: 404, headers: JS_HEADERS });
 }

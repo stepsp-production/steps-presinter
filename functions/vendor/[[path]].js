@@ -1,42 +1,41 @@
-const JS_HEADERS = {
-  'Content-Type': 'application/javascript; charset=utf-8',
-  'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
-  'X-Content-Type-Options': 'nosniff',
+const CDN = {
+  'livekit-client.umd.min.js': [
+    'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
+    'https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
+    'https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js'
+  ],
+  'hls.min.js': [
+    'https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js'
+  ],
+  'ping.js': ['data:text/javascript,console.log("vendor ok")'] // فحص سريع
 };
 
-async function proxyFirstOk(urls) {
-  for (const url of urls) {
-    try {
-      const r = await fetch(url, { cf: { cacheEverything: true, cacheTtl: 86400 } });
-      if (r.ok) return new Response(r.body, { headers: JS_HEADERS });
-    } catch (_) {}
-  }
-  return new Response('CDN fetch failed', { status: 502, headers: JS_HEADERS });
-}
-
 export async function onRequest({ params }) {
-  const p = String(params?.path || '');
+  const name = String(params?.path || '');
+  const list = CDN[name];
+  if (!list) return new Response('Not found', { status: 404 });
 
-  if (p === 'ping.js') {
-    return new Response(`window.__VENDOR_PING__=true;`, { headers: JS_HEADERS });
+  for (const src of list) {
+    try {
+      if (src.startsWith('data:')) {
+        return new Response(await (await fetch(src)).text(), {
+          headers: baseHeaders()
+        });
+      }
+      const r = await fetch(src, { cf: { cacheEverything: true, cacheTtl: 86400 } });
+      if (r.ok) {
+        const h = baseHeaders();
+        h.set('Cache-Control','public, max-age=86400, s-maxage=604800, immutable');
+        return new Response(r.body, { headers: h });
+      }
+    } catch {}
   }
+  return new Response('Upstream CDN error', { status: 502, headers: baseHeaders() });
 
-  if (p === 'hls.min.js' || p === 'hls.js') {
-    return proxyFirstOk([
-      'https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js',
-      'https://unpkg.com/hls.js@1.5.8/dist/hls.min.js',
-      'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js',
-    ]);
+  function baseHeaders() {
+    const h = new Headers();
+    h.set('Content-Type', 'application/javascript; charset=utf-8');
+    h.set('Access-Control-Allow-Origin', '*');
+    return h;
   }
-
-  if (p === 'livekit-client.umd.min.js' || p === 'livekit-client.umd.js') {
-    return proxyFirstOk([
-      'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
-      'https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js',
-      'https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.min.js',
-      'https://cdn.livekit.io/libs/client-sdk/2.5.0/livekit-client.umd.min.js',
-    ]);
-  }
-
-  return new Response('Not Found', { status: 404, headers: JS_HEADERS });
 }

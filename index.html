@@ -5,18 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Steps Co VIP Player</title>
 
+  <!-- HLS.js -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-  <!-- نحمل HLS.js من نطاقنا عبر Functions لتفادي CSP -->
- 
 
   <!-- أيقونة -->
   <link rel="icon"
-    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
   <style>
     :root{
       --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
-      --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26;
+      --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26; /* ← التصحيح هنا */
     }
     *{box-sizing:border-box} html,body{height:100%}
     body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
@@ -29,17 +28,17 @@
     #mainPreview:hover{box-shadow:0 10px 30px #0008}
     #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
 
-    /* تقسيم */
+    /* تقسيم (MAIN يمين دائمًا) */
     .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
     .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
 
     /* أوضاع التقسيم */
     .split.mode1 #mainPreview video,
-    .split.mode1 #activeCam  video{object-fit:contain}
+    .split.mode1 #activeCam  video{object-fit:contain; transform:none}
     .split.mode2 #mainPreview video,
     .split.mode2 #activeCam  video{object-fit:contain; transform:scale(1.08); transform-origin:center}
     .split.mode3 #mainPreview video,
-    .split.mode3 #activeCam  video{object-fit:cover}
+    .split.mode3 #activeCam  video{object-fit:cover; transform:none}
 
     /* تكبير المعاينة */
     .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
@@ -49,10 +48,10 @@
     .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
     .split .hint,.main-full .hint{display:none}
 
-    /* أدوات/أزرار + إخفاء تلقائي */
+    /* أشرطة/أزرار + إخفاء تلقائي */
     #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
     #utilityControls{top:10px;right:10px}
-    #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bد);align-items:center;min-width:340px}
+    #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
     #globalControls.hidden{display:none}
 
     button{-webkit-tap-highlight-color:transparent;appearance:none;border:0;outline:0;cursor:pointer;background:var(--btn-bg);color:var(--btn-txt);padding:11px 12px;font-size:12px;font-weight:800;border-radius:12px;letter-spacing:.2px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 18px #000a,0 0 0 0 rgba(0,193,154,.28);transition:transform .12s,box-shadow .12s,background .12s}
@@ -65,34 +64,42 @@
 
     #gatePlay{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2))}
     #gatePlay.hidden{display:none}
-    .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bد);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
-    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bد);color:#fff;background:#111a;font-size:18px}
+    .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
     #startBtn{min-width:160px}
 
-    /* القائمة الجانبية */
-    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;}
+    /* القائمة الجانبية (شفافة) */
+    #streamPanel{
+      position:absolute; top:0; left:0; height:100%; width:230px; z-index:12;
+      background:none; border-right:none; padding:12px 10px; color:#fff;
+      transition:opacity .18s; pointer-events:auto;
+    }
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
-    .stream-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20); backdrop-filter: blur(2px); transition:background .12s, border-color .12s, transform .06s;}
+    .stream-item{
+      display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer;
+      background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20);
+      backdrop-filter: blur(2px);
+      transition:background .12s, border-color .12s, transform .06s;
+    }
     .stream-item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
     .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
     .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
 
-    /* إخفاء الواجهة تلقائيًا */
-    .ui-hidden #streamPanel,.ui-hidden #utilityControls,.ui-hidden #globalControls,.ui-hidden #lkPanel{opacity:0; pointer-events:none}
-    .ui-visible #streamPanel,.ui-visible #utilityControls,.ui-visible #globalControls,.ui-visible #lkPanel{opacity:1; pointer-events:auto}
+    /* إخفاء واجهة التحكم تلقائيًا */
+    .ui-hidden #streamPanel,
+    .ui-hidden #utilityControls,
+    .ui-hidden #globalControls{opacity:0; pointer-events:none}
+    .ui-visible #streamPanel,
+    .ui-visible #utilityControls,
+    .ui-visible #globalControls{opacity:1; pointer-events:auto}
 
-    /* LiveKit */
-    #lkPanel{position:absolute; bottom:14px; right:14px; z-index:20; background:var(--panel-bg); border:1px solid var(--panel-bد); border-radius:14px; padding:10px; backdrop-filter: blur(8px); display:flex; flex-direction:column; gap:8px; width:min(92vw,520px); transition:opacity .18s;}
-    #lkPanel h3{margin:0;color:#fff;font-size:13px}
-    #lkGrid{display:grid; grid-template-columns: repeat( auto-fit, minmax(120px,1fr) ); gap:8px; max-height:34vh; overflow:auto;}
-    .tile{position:relative; background:#0b0b0f; border:1px solid #ffffff22; border-radius:10px; overflow:hidden; min-height:90px}
-    .tile video{width:100%;height:100%;object-fit:cover;display:block}
-    .badge{position:absolute; left:6px; top:6px; background:#000a; color:#fff; font-size:10px; padding:2px 6px; border-radius:999px; border:1px solid #fff2}
-    #lkControls{display:flex; gap:6px; flex-wrap:wrap}
-    #lkControls select, #lkControls input, #lkControls .text{font-size:11px}
-    #lkControls select, #lkControls input{background:#10151f; color:#fff; border:1px solid #ffffff22; border-radius:10px; padding:8px}
-    #lkHint{color:#eaeaf0b3; font-size:11px}
+    /* طبقات وتلاشي التبديل */
+    .layer{position:absolute; inset:0;}
+    .fade-in{animation:fadeIn .18s ease forwards}
+    .fade-out{animation:fadeOut .18s ease forwards}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes fadeOut{from{opacity:1}to{opacity:0}}
 
     @media (orientation: portrait){
       #mainPreview{top:12px;right:14px;width:58vw;height:36vh;border-radius:18px}
@@ -100,139 +107,9 @@
       #scrub{width:clamp(140px,56vw,380px)}
       #streamPanel{width:190px}
     }
-
-    #sysBanner{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:30;background:#111a;color:#fff;border:1px solid #ffffff2a;border-radius:999px;padding:6px 10px;font-size:12px;display:none}
-    #sysBanner.show{display:inline-block}
   </style>
 </head>
 <body>
-  <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
-
-    <div id="sysBanner"></div>
-
-    <!-- القائمة الجانبية -->
-    <aside id="streamPanel" aria-label="مصادر البث">
-      <div class="panel-title">SOURCES</div>
-      <ul id="streamList"></ul>
-    </aside>
-
-    <div id="activeCam" class="videoFrame" aria-label="الكاميرا النشطة"></div>
-    <div id="mainPreview" class="videoFrame" title="انقر للتكبير/التصغير" aria-label="المعاينة الرئيسية المصغّرة"></div>
-    <div class="hint">انقر على المعاينة للتكبير • أو اضغط F</div>
-
-    <!-- بوابة البدء -->
-    <div id="gatePlay" role="dialog" aria-modal="true" aria-label="بدء التشغيل">
-      <div class="gate-card">
-        <div class="icon">▶</div>
-        <div>
-          <div style="color:#fff;font-weight:800;margin-bottom:6px">ابدأ التشغيل والمزامنة</div>
-          <div style="font-size:12px;color:#eaeaf0b3">سيظهر شريط التقديم/التأخير بعد الضغط على تشغيل</div>
-        </div>
-        <button id="startBtn" aria-label="ابدأ التشغيل الآن">تشغيل/بدء المزامنة</button>
-      </div>
-    </div>
-
-    <!-- لوحة LiveKit -->
-    <div id="lkPanel" aria-label="LiveKit Panel">
-      <h3>الغرفة المباشرة (LiveKit)</h3>
-      <div id="lkControls">
-        <label class="text" for="lkRoom">الغرفة:</label>
-        <select id="lkRoom">
-          <option>studio-1</option><option>studio-2</option><option>studio-3</option><option>studio-4</option><option>studio-5</option>
-          <option>studio-6</option><option>studio-7</option><option>studio-8</option><option>studio-9</option><option>studio-10</option>
-        </select>
-        <input id="lkName" placeholder="اسم العرض (اختياري)" />
-        <button id="lkJoin">انضم</button>
-        <button id="lkLeave" disabled>مغادرة</button>
-        <button id="lkToggleCam" disabled>الكاميرا</button>
-        <button id="lkToggleMic" disabled>المايك</button>
-        <span id="lkHint" class="text">اضغط “تشغيل” أولاً للسماح للمتصفح.</span>
-      </div>
-      <div id="lkGrid" aria-live="polite"></div>
-    </div>
-
-    <!-- أدوات -->
-    <div id="utilityControls" role="toolbar" aria-label="أدوات">
-      <button id="btnSplit" aria-label="تبديل وضع التقسيم" title="تقسيم">تقسيم</button>
-      <button id="btnFill"  aria-label="تبديل ملء المحتوى" title="ملء">ملء</button>
-      <button id="btnSound" aria-label="تشغيل/إيقاف الصوت" title="صوت">🔊/🔇</button>
-    </div>
-
-    <!-- الشريط الموحّد -->
-    <div id="globalControls" class="hidden" role="group" aria-label="تحكم موحّد">
-      <button id="gBack" title="⏪ -5s">⏪ 5s</button>
-      <button id="gPlay" title="⏯">⏯</button>
-      <button id="gFwd"  title="+5s ⏩">5s ⏩</button>
-      <input id="scrub" type="range" min="0" max="0" value="0" step="0.01" aria-label="شريط التقدم">
-      <div id="timeLabel">00:00 / 00:00</div>
-    </div>
-  </div>
-
-  <script>
-    // ثوابت الخدمة
-    const API_BASE = "https://steps-livekit-api.onrender.com";
-    // اجعل HLS_BASE فارغاً لاستخدام Functions على نفس الدومين (/hls/...)
-    window.HLS_BASE = "";
-
-    const banner = document.getElementById('sysBanner');
-    const showBanner = (msg)=>{ banner.textContent = msg; banner.classList.add('show'); setTimeout(()=>banner.classList.remove('show'), 5000); };
-  </script>
-
-  <!-- تحميل LiveKit من نطاقك فقط -->
-  <script>
-    async function loadScript(src){
-      return new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = src; s.async = true; s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
-    async function ensureLiveKit(){
-      const pick = ()=> window.Livekit || window.LiveKit || window.livekit;
-      if (pick()) return pick();
-      try{ await loadScript('/vendor/livekit-client.umd.min.js'); }catch(_){}
-      const LK = pick();
-      if (!LK || (typeof LK.connect !== 'function' && typeof LK.Room !== 'function')) {
-        showBanner('تعذّر تحميل LiveKit من /vendor — تأكد من Functions وContent-Type');
-        throw new Error('LiveKit library did not load');
-      }
-      return LK;
-    }
-  </script>
-
-
-  <!-- توجيه عبر ورَكر -->
-  <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
-
-  <script>
-    /* الروابط والعناوين كما هي */
-    (function(){
-      const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
-      const build=(p)=>BASE?`${BASE}${p}`:p;
-
-      window.sources={
-        main:build("/hls/live/playlist.m3u8"),
-        cam1:build("/hls/lastone/playlist.m3u8"),
-        cam2:build("/hls/live2/playlist.m3u8"),
-        cam3:build("/hls/live3/playlist.m3u8"),
-        cam4:build("/hls/live4/playlist.m3u8"),
-        cam5:build("/hls/live5/playlist.m3u8"),
-        cam6:build("/hls/live6/playlist.m3u8"),
-        cam7:build("/hls/live7/playlist.m3u8")
-      };
-
-      window.channelMap=[
-        {id:'main',label:'MAIN',src:sources.main},
-        {id:'cam1',label:'Cam1',src:sources.cam1},
-        {id:'cam2',label:'Cam2',src:sources.cam2},
-        {id:'cam3',label:'Cam3',src:sources.cam3},
-        {id:'cam4',label:'Cam4',src:sources.cam4},
-        {id:'cam5',label:'Cam5',src:sources.cam5},
-        {id:'cam6',label:'Drone',src:sources.cam6},
-        {id:'cam7',label:'Sineflex',src:sources.cam7},
-      ];
-    })();
-  </script>
 
   <!-- ===== مشغّل الفيديو والواجهة ===== -->
   <script>

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Steps Co VIP Player</title>
 
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <!-- نحمل HLS.js من نطاقنا عبر Functions لتفادي CSP -->
   <script src="/vendor/[[path]].js"></script>
 
@@ -199,8 +200,11 @@
     }
   </script>
 
-  <!-- ===== مصادر البث + قائمة القنوات ===== -->
+<!-- توجيه عبر ورَكر -->
+  <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
+
   <script>
+    /* الروابط والعناوين كما هي */
     (function(){
       const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
       const build=(p)=>BASE?`${BASE}${p}`:p;
@@ -218,13 +222,13 @@
 
       window.channelMap=[
         {id:'main',label:'MAIN',src:sources.main},
-        {id:'cam1',label:'CAM1',src:sources.cam1},
-        {id:'cam2',label:'CAM2',src:sources.cam2},
-        {id:'cam3',label:'CAM3',src:sources.cam3},
-        {id:'cam4',label:'CAM4',src:sources.cam4},
-        {id:'cam5',label:'CAM5',src:sources.cam5},
-        {id:'cam6',label:'DRONE',src:sources.cam6},
-        {id:'cam7',label:'SINEFLEX',src:sources.cam7},
+        {id:'cam1',label:'Cam1',src:sources.cam1},
+        {id:'cam2',label:'Cam2',src:sources.cam2},
+        {id:'cam3',label:'Cam3',src:sources.cam3},
+        {id:'cam4',label:'Cam4',src:sources.cam4},
+        {id:'cam5',label:'Cam5',src:sources.cam5},
+        {id:'cam6',label:'Drone',src:sources.cam6},
+        {id:'cam7',label:'Sineflex',src:sources.cam7},
       ];
     })();
   </script>

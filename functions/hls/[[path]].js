@@ -1,110 +1,98 @@
 export async function onRequest({ request, env, params }) {
-  const ORIGIN_BASE = (env.ORIGIN_BASE || '').replace(/\/+$/, '');
-  const UPSTREAM_PREFIX = (env.UPSTREAM_PREFIX || '/hls').replace(/\/+$/, '');
-  if (!ORIGIN_BASE) return new Response('Missing ORIGIN_BASE', { status: 500 });
-
-  // Preflight
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders() });
-  }
-
-  const sub = '/' + (params?.path || '');
-  const url = new URL(request.url);
-  const qs  = url.search || '';
-
-  const upstreamPath = `${UPSTREAM_PREFIX}${sub}`.replace(/\/{2,}/g, '/');
-  const upstreamUrl  = `${ORIGIN_BASE}${upstreamPath}${qs}`;
-  const originHost   = safeHost(ORIGIN_BASE);
-
-  // رؤوس ممرّرة
-  const fwd = new Headers();
-  fwd.set('Host', originHost);
-  fwd.set('Accept', 'application/vnd.apple.mpegurl, application/x-mpegURL, */*');
-  for (const h of ['range','user-agent','accept-encoding','origin','referer']) {
-    const v = request.headers.get(h);
-    if (v) fwd.set(h, v);
-  }
-
-  let up;
   try {
-    up = await fetch(upstreamUrl, { method: 'GET', headers: fwd });
-  } catch {
-    return new Response('Upstream fetch failed', { status: 502, headers: withDebug(corsHeaders(), upstreamUrl) });
-  }
+    const ORIGIN_BASE = (env.ORIGIN_BASE || '').replace(/\/+$/, '');
+    const UPSTREAM_PREFIX = (env.UPSTREAM_PREFIX || '/hls').replace(/\/+$/, '');
 
-  const hdr = new Headers(up.headers);
-  applyCors(hdr);
-  hdr.set('Cache-Control', 'no-store');
-  hdr.set('X-Upstream-URL', upstreamUrl);
+    if (!ORIGIN_BASE) {
+      return new Response('Missing ORIGIN_BASE', { status: 500 });
+    }
 
-  const isM3U8 = /\.m3u8(\?.*)?$/i.test(sub);
+    // sub = "/live/playlist.m3u8" مثلاً
+    const sub = '/' + (params?.path || '');
+    const url = new URL(request.url);
+    const qs = url.search || '';
 
-  if (!up.ok) {
-    const body = await up.text().catch(() => '');
-    if (isM3U8) hdr.set('Content-Type', 'text/plain; charset=utf-8');
-    return new Response(body, { status: up.status, headers: hdr });
-  }
+    const upstreamPath = `${UPSTREAM_PREFIX}${sub}`.replace(/\/{2,}/g, '/');
+    const upstreamUrl = `${ORIGIN_BASE}${upstreamPath}${qs}`;
 
-  // القطع/الميديا: مرّر كما هي (يحافظ على 200/206)
-  if (!isM3U8) {
-    if (!hdr.has('Accept-Ranges')) hdr.set('Accept-Ranges', 'bytes');
-    return new Response(up.body, { status: up.status, headers: hdr });
-  }
+    // مرر بعض الهيدرز
+    const fwd = {};
+    for (const h of ['range', 'user-agent', 'accept', 'accept-encoding', 'origin', 'referer']) {
+      const v = request.headers.get(h);
+      if (v) fwd[h] = v;
+    }
 
-  // إعادة كتابة manifest
-  const text = await up.text();
+    const up = await fetch(upstreamUrl, { headers: fwd });
 
-  const publicBase = `/hls${sub}${qs}`;
-  const parent = publicBase.replace(/\/[^/]*$/, '/');
+    // هيدرز الرد
+    const hdr = new Headers(up.headers);
+    hdr.set('Access-Control-Allow-Origin', '*');
+    hdr.delete('transfer-encoding');
+    hdr.set('Cache-Control', 'no-store');
+    hdr.set('X-Upstream-URL', upstreamUrl);
 
-  const toHls = (input) => {
-    if (!input) return input;
-    try {
-      if (/^https?:\/\//i.test(input)) {
-        const u = new URL(input);
-        return `/hls${u.pathname}${u.search || ''}`;
-      }
-      if (input.startsWith('/')) return `/hls${input}`;
-      return parent + input.replace(/^\.\//, '');
-    } catch { return input; }
-  };
+    const isM3U8Path = /\.m3u8(\?.*)?$/i.test(sub);
 
-  const rewritten = text
-    .split('\n')
-    .map((line) => {
-      const raw = line.trim();
-      if (!raw) return line;
+    if (!up.ok) {
+      const body = await up.text().catch(() => '');
+      // مرر الحالة كما هي من الـorigin، مع X-Upstream-URL للتشخيص
+      return new Response(body, { status: up.status, headers: hdr });
+    }
 
-      if (!raw.startsWith('#')) return toHls(raw);
+    // لو ليست m3u8 (مثل TS segments) مررها كما هي
+    if (!isM3U8Path) {
+      return new Response(up.body, { status: 200, headers: hdr });
+    }
 
-      const m = raw.match(/URI="([^"]+)"/i);
-      if (m) return raw.replace(/URI="([^"]+)"/i, (_, uri) => `URI="${toHls(uri)}"`);
-      return line;
-    })
-    .join('\n');
+    // هنا طلب مانيفست .m3u8 — افحص المحتوى
+    const text = await up.text();
+    const trimmed = text.slice(0, 20).trim();
 
-  hdr.set('Content-Type', 'application/vnd.apple.mpegurl');
-  return new Response(rewritten, { status: 200, headers: hdr });
+    // تشخيص صارم: لو لا يبدأ بـ #EXTM3U → ارجع 502 برسالة واضحة
+    if (!/^#EXTM3U/.test(trimmed)) {
+      const preview = text.slice(0, 200).replace(/\s+/g, ' ');
+      const diag = `Upstream did not return a valid M3U8.
+X-Upstream-URL: ${upstreamUrl}
+First 200 bytes: ${preview}`;
+      return new Response(diag, {
+        status: 502,
+        headers: new Headers({
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-store',
+          'X-Upstream-URL': upstreamUrl,
+        }),
+      });
+    }
 
-  // ===== Helpers =====
-  function corsHeaders() {
-    const h = new Headers();
-    applyCors(h);
-    return h;
-  }
-  function applyCors(h) {
-    h.set('Access-Control-Allow-Origin', '*');
-    h.set('Access-Control-Allow-Methods', 'GET,HEAD,OPTIONS');
-    h.set('Access-Control-Allow-Headers', 'Range, Accept, Origin, Referer, Cache-Control');
-    h.set('Access-Control-Expose-Headers', 'Content-Length, Content-Range, Accept-Ranges');
-    h.set('Vary', 'Origin');
-  }
-  function withDebug(h, upstream) {
-    const hh = new Headers(h);
-    hh.set('X-Upstream-URL', upstream);
-    return hh;
-  }
-  function safeHost(base) {
-    try { return new URL(base).host; } catch { return ''; }
+    // إعادة كتابة روابط المانيفست لتسير عبر /hls على نفس النطاق
+    const publicBase = `/hls${sub}${qs}`;
+    const parent = publicBase.replace(/\/[^/]*$/, '/');
+
+    const rewritten = text
+      .split('\n')
+      .map((line) => {
+        const t = line.trim();
+        if (!t || t.startsWith('#')) return line;
+        if (/^https?:\/\//i.test(t)) {
+          try {
+            const u = new URL(t);
+            return `/hls${u.pathname}${u.search || ''}`;
+          } catch {
+            return line;
+          }
+        }
+        return parent + t;
+      })
+      .join('\n');
+
+    const h2 = new Headers(hdr);
+    h2.set('Content-Type', 'application/vnd.apple.mpegurl');
+    return new Response(rewritten, { status: 200, headers: h2 });
+  } catch (e) {
+    return new Response(`HLS proxy error: ${e?.message || e}`, {
+      status: 500,
+      headers: { 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' },
+    });
   }
 }

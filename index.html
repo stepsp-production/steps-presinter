@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Steps Co VIP Player</title>
 
-  <!-- أيقونة -->
+  <!-- Favicon -->
   <link rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
@@ -62,8 +62,8 @@
 
     #gatePlay{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2))}
     #gatePlay.hidden{display:none}
-    .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
-    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
+    .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bد);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bد);color:#fff;background:#111a;font-size:18px}
     #startBtn{min-width:160px}
 
     /* القائمة الجانبية (شفافة) */
@@ -95,7 +95,7 @@
     /* ===== LiveKit UI ===== */
     #lkPanel{
       position:absolute; bottom:14px; right:14px; z-index:20;
-      background:var(--panel-bg); border:1px solid var(--panel-bd); border-radius:14px; padding:10px; backdrop-filter: blur(8px);
+      background:var(--panel-bg); border:1px solid var(--panel-bد); border-radius:14px; padding:10px; backdrop-filter: blur(8px);
       display:flex; flex-direction:column; gap:8px; width: min(92vw, 520px);
     }
     #lkPanel h3{margin:0;color:#fff;font-size:13px}
@@ -197,43 +197,69 @@
     </div>
   </div>
 
-  <!-- إعدادات عامة قابلة للتعديل -->
+  <!-- إعدادات عامة -->
   <script>
-    // API لخدمة التوكن (Render)
+    // عنوان خدمة التوكن على Render
     window.API_BASE = "https://steps-livekit-api.onrender.com";
-    // تنل Cloudflare الحالي كـ fallback مباشر إذا تعطل /hls عند الدومين
+    // تنل Cloudflare الاحتياطي لمسارات HLS إن فشل /hls على نفس النطاق
     window.FALLBACK_ORIGIN = "https://fan-receiving-infinite-thus.trycloudflare.com";
   </script>
 
-  <!-- لودرات محلية دون أي CDN -->
+  <!-- أدوات تحميل محلية فقط -->
   <script>
     function loadScript(src){
-      return new Promise((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src = src;
-        s.async = true;
-        s.onload = () => resolve();
-        s.onerror = (e) => reject(e);
+      return new Promise((resolve, reject)=>{
+        const s=document.createElement('script');
+        s.src=src; s.async=true;
+        s.onload=()=>resolve(src);
+        s.onerror=(e)=>reject(new Error('Failed to load '+src));
         document.head.appendChild(s);
       });
     }
 
     async function ensureHls(){
       if(window.Hls) return window.Hls;
-      await loadScript('/vendor/hls.min.js');
-      if(!window.Hls) throw new Error('Hls.js did not load');
-      return window.Hls;
+      const candidates = ['/vendor/hls.min.js','/vendor/hls.js'];
+      let lastErr;
+      for (const c of candidates){
+        try{
+          const loaded = await loadScript(c);
+          if(window.Hls){ console.log('[HLS] loaded from', loaded); return window.Hls; }
+        }catch(e){ lastErr = e; console.warn(e); }
+      }
+      throw lastErr || new Error('Hls.js did not load');
+    }
+
+    function pickLiveKitGlobal(){
+      // جرّب كافة الأسماء المحتملة حسب الـ UMD
+      return window.LiveKit || window.livekit || window.LivekitClient || window.LiveKitClient || null;
     }
 
     async function ensureLiveKit(){
-      if(window.LiveKit) return window.LiveKit;
-      await loadScript('/vendor/livekit-client.umd.min.js'); // من نطاقك فقط
-      if(!window.LiveKit) throw new Error('LiveKit library did not load');
-      return window.LiveKit;
+      const g0 = pickLiveKitGlobal();
+      if (g0) { console.log('[LK] global present (preload)'); return g0; }
+
+      // مسارات محتملة على /vendor
+      const candidates = [
+        '/vendor/livekit-client.umd.min.js',
+        '/vendor/livekit-client.min.js',
+        '/vendor/livekit-client.umd.js',
+        '/vendor/livekit-client.js'
+      ];
+      let lastErr;
+      for (const c of candidates){
+        try{
+          const loaded = await loadScript(c);
+          const g = pickLiveKitGlobal();
+          if (g){ console.log('[LK] loaded from', loaded, 'version:', g.version || '(unknown)'); return g; }
+          console.warn('[LK] script loaded but global not found after', loaded);
+        }catch(e){ lastErr = e; console.warn(e); }
+      }
+      throw lastErr || new Error('LiveKit library did not load');
     }
   </script>
 
-  <!-- بناء المصادر مع فحص تلقائي للبروكسي /hls أو التحويل للتنل -->
+  <!-- اختيار قاعدة HLS (المسار المحلي /hls أو التنل كـ fallback) -->
   <script>
     window.sourcesReady = (async function(){
       async function pickHlsBase(){
@@ -242,10 +268,10 @@
           const r = await fetch(probe, { method:'GET', cache:'no-store' });
           const ct = r.headers.get('content-type') || '';
           const okType = /application\/vnd\.apple\.mpegurl|audio\/mpegurl|application\/x-mpegURL/i.test(ct);
-          if(!r.ok || !okType){ throw new Error('not m3u8'); }
+          if(!r.ok || !okType) throw new Error('not m3u8');
           const text = await r.text();
           if(!/^#EXTM3U/m.test(text)) throw new Error('no EXTM3U');
-          return ""; // استخدم /hls على نفس الدومين
+          return ""; // استخدم /hls من نفس النطاق
         }catch{
           return (window.FALLBACK_ORIGIN || "").replace(/\/$/, "");
         }
@@ -316,7 +342,7 @@
       let started=false, splitMode=0, isMainFull=false;
       let mainPlayer, activePlayer, currentCam='cam2';
       let ticker=null, isScrubbing=false;
-      const playersCache=new Map(); // id -> {wrap, video, ready}
+      const playersCache=new Map();
 
       const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
 
@@ -349,7 +375,7 @@
           capLevelToPlayerSize:true, enableWorker:true,
           maxBufferHole:0.15, maxSeekHole:0.25, nudgeOffset:0.12, nudgeMaxRetry:10,
           abrMaxWithRealBitrate:true,
-          fragLoadingMaxRetry:6, manifestLoadingMaxRetry:6, levelLoadingMaxRetry:5,
+          fragLoadingMaxRetry:6, manifestLoadingMaxRetry:6, levelLoadingRetry:5,
           fragLoadingRetryDelay:350, manifestLoadingRetryDelay:500, levelLoadingRetryDelay:500,
           fragLoadingTimeOut:10000, manifestLoadingTimeOut:8000, levelLoadingTimeOut:8000,
         });
@@ -404,16 +430,14 @@
       function markActiveList(){document.querySelectorAll('.stream-item').forEach(el=>{el.classList.toggle('active',el.dataset.cam===currentCam);});}
 
       async function initOnce(){
-        await window.sourcesReady;           // تأكد أن المصادر جاهزة
-        await ensureHls();                   // حمّل Hls من نطاقك
+        await window.sourcesReady;
+        await ensureHls();
 
-        // MAIN
         const {wrap:mw,video:mv}=createVideoElement(window.sources.main);
         mountTo(mainContainer,mw);
         mw.style.opacity='1';
         mainPlayer=mv;
 
-        // أول كاميرا
         const first=getOrCreateCam(currentCam);
         first.wrap.style.opacity='1';
         activePlayer=first.video;
@@ -434,7 +458,6 @@
         return rec;
       }
 
-      /* ===== تبديل الكاميرا بدون تقطّع ===== */
       async function setActiveCamSmooth(id){
         if(!window.sources[id] || id===currentCam) return;
         currentCam=id; markActiveList();
@@ -444,7 +467,6 @@
         if(!target.ready) await new Promise(r => v.addEventListener('canplay', r, {once:true}));
 
         let T = (mainPlayer?.currentTime||0);
-        // انتقل لنفس الحافة تقريباً
         const m=getSeekableRange(v);
         if(m){
           T = Math.max(m.start, m.end - SAFETY_EDGE);
@@ -458,7 +480,6 @@
         setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
       }
 
-      /* ===== تشغيل أولي & ساعة ===== */
       async function startPlayback(){
         if(started) return; started=true;
         gatePlay.classList.add('hidden'); globalControls.classList.remove('hidden');
@@ -494,7 +515,7 @@
         },250);
       }
 
-      /* ===== واجهة مخفية تلقائيًا ===== */
+      /* إخفاء الواجهة تلقائيًا */
       let uiTimer=null;
       function showUI(){root.classList.remove('ui-hidden');root.classList.add('ui-visible');clearTimeout(uiTimer);uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500);}
       ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true}));
@@ -504,10 +525,9 @@
       });
       setTimeout(showUI,1000);
 
-      /* ===== التحكّمات ===== */
+      /* التحكّمات */
       startBtn.addEventListener('click',startPlayback);
 
-      // زر التقسيم — 0 عادي → 1 contain → 2 نصف حواف → 3 ملء كامل
       btnSplit.addEventListener('click',()=>{
         splitMode=(splitMode+1)%4;
         root.classList.toggle('split', splitMode!==0);
@@ -517,7 +537,6 @@
         if(splitMode===3) root.classList.add('mode3');
       });
 
-      // زر الملء
       btnFill.addEventListener('click',()=>{
         if(splitMode===0){
           isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull);
@@ -595,27 +614,28 @@
 
       async function joinLiveKit(){
         try{
-          // اطلب إذن المايك/الكاميرا مبكرًا لإظهار نافذة الإذن
+          // إجبار نافذة الإذن لتفعيل الكاميرا/الميك
           await navigator.mediaDevices.getUserMedia({ audio:true, video:true }).catch(()=>{});
 
-          const LK = await ensureLiveKit();
+          const LK = await ensureLiveKit(); // ← هنا كان التعطّل
 
           const roomName = lkRoomSel.value || 'studio-1';
           const displayName = lkNameInput.value.trim() || undefined;
           const { token, wsUrl } = await fetchLiveKitToken({ room: roomName, name: displayName });
 
+          console.log('[LK] connecting to', wsUrl);
           lkRoom = await LK.connect(wsUrl, token, { autoSubscribe: true, stopLocalTrackOnUnpublish: true });
 
           // نشر كاميرا + مايك
           const tracks = await LK.createLocalTracks({ audio: true, video: { facingMode: 'user' } });
           for (const t of tracks) await lkRoom.localParticipant.publishTrack(t);
 
-          // إضافة مربعاتي
+          // مربعاتي
           for (const pub of lkRoom.localParticipant.trackPublications.values()) {
             if (pub.track) addTrackTile(pub.track, 'أنا');
           }
 
-          // الاشتراك بمسارات الآخرين
+          // الاشتراك بالآخرين
           const unsubscribers = new Map();
           lkRoom
             .on(LK.RoomEvent.TrackSubscribed, (track, publication, participant) => {
@@ -670,7 +690,6 @@
         lkToggleMic.textContent = localMicEnabled ? 'المايك' : 'تشغيل المايك';
       });
 
-      // ابدأ
       window.addEventListener('DOMContentLoaded', initOnce);
     })();
   </script>

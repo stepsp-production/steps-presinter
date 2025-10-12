@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Steps Co VIP Player</title>
 
-  <!-- أيقونة بسيطة -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
   <style>
@@ -44,8 +43,8 @@
     .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
     .split .hint,.main-full .hint{display:none}
 
-    /* أشرطة/أزرار + إخفاء تلقائي */
-    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
+    /* أشرطة/أزرار */
+    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap}
     #utilityControls{top:10px;right:10px}
     #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
     #globalControls.hidden{display:none}
@@ -65,11 +64,10 @@
     .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
     #startBtn{min-width:160px}
 
-    /* القائمة الجانبية (شفافة) */
+    /* القائمة الجانبية */
     #streamPanel{
       position:absolute; top:0; left:0; height:100%; width:230px; z-index:12;
       background:none; border-right:none; padding:12px 10px; color:#fff;
-      transition:opacity .18s; pointer-events:auto;
     }
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
@@ -78,18 +76,16 @@
       background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20);
       backdrop-filter: blur(2px);
       transition:background .12s, border-color .12s, transform .06s;
+      color:#fff;
     }
     .stream-item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
     .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
     .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
 
-    /* إخفاء واجهة التحكم تلقائيًا */
-    .ui-hidden #streamPanel,
-    .ui-hidden #utilityControls,
-    .ui-hidden #globalControls{opacity:0; pointer-events:none}
-    .ui-visible #streamPanel,
-    .ui-visible #utilityControls,
-    .ui-visible #globalControls{opacity:1; pointer-events:auto}
+    /* تنبيهات */
+    #sysBanner{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:15;
+      background:#000c;color:#fff;border:1px solid #fff2;padding:6px 10px;border-radius:999px;font-size:12px;display:none}
+    #sysBanner.show{display:block}
 
     @media (orientation: portrait){
       #mainPreview{top:12px;right:14px;width:58vw;height:36vh;border-radius:18px}
@@ -97,20 +93,24 @@
       #scrub{width:clamp(140px,56vw,380px)}
       #streamPanel{width:190px}
     }
-
-    /* تنبيهات صغيرة أعلى يسار */
-    #sysBanner{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:15;
-      background:#000c;color:#fff;border:1px solid #fff2;padding:6px 10px;border-radius:999px;font-size:12px;display:none}
-    #sysBanner.show{display:block}
   </style>
 </head>
 <body>
   <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
 
-    <!-- القائمة الجانبية -->
+    <!-- القائمة الجانبية – عناصر جاهزة مسبقًا (ستُفعّلها JS) -->
     <aside id="streamPanel" aria-label="مصادر البث">
       <div class="panel-title">SOURCES</div>
-      <ul id="streamList"></ul>
+      <ul id="streamList">
+        <li class="stream-item" data-id="main"><div class="stream-name">MAIN</div></li>
+        <li class="stream-item" data-id="cam1"><div class="stream-name">CAM1</div></li>
+        <li class="stream-item" data-id="cam2"><div class="stream-name">CAM2</div></li>
+        <li class="stream-item" data-id="cam3"><div class="stream-name">CAM3</div></li>
+        <li class="stream-item" data-id="cam4"><div class="stream-name">CAM4</div></li>
+        <li class="stream-item" data-id="cam5"><div class="stream-name">CAM5</div></li>
+        <li class="stream-item" data-id="cam6"><div class="stream-name">DRONE</div></li>
+        <li class="stream-item" data-id="cam7"><div class="stream-name">SINEFLEX</div></li>
+      </ul>
     </aside>
 
     <div id="activeCam" class="videoFrame" aria-label="الكاميرا النشطة"></div>
@@ -145,34 +145,23 @@
       <div id="timeLabel">00:00 / 00:00</div>
     </div>
 
-    <!-- تنبيه -->
     <div id="sysBanner"></div>
   </div>
 
-  <!-- التحميل من نطاقك فقط -->
+  <!-- تحميل HLS من نطاقك -->
   <script async src="/vendor/hls.min.js"></script>
 
-  <!-- توجيه HLS (اتركه فارغًا لاستخدام /hls عبر Functions) -->
-  <script>
-    window.HLS_BASE = ""; // نستخدم /hls/... مباشرة من Functions
-  </script>
+  <!-- نستخدم /hls/ عبر Functions -->
+  <script>window.HLS_BASE="";</script>
 
-  <!-- مصادر وتشغيل -->
   <script>
-  /************** أدوات تنبيه صغيرة **************/
-  const sysBanner = () => {
-    const el = document.getElementById('sysBanner');
-    return {
-      show(msg){ el.textContent = msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'), 4500); }
-    }
-  }();
+  /* تنبيه صغير */
+  const sysBanner = (()=>{const el=document.getElementById('sysBanner');return{show:(m)=>{el.textContent=m;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),4500);}}})();
 
-  /************** مصادر HLS **************/
+  /* تعريف المصادر */
   (function(){
     const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
     const build=(p)=>BASE?`${BASE}${p}`:p;
-
-    // غيّر الأسماء حسب مصادر السيرفر لديك
     window.sources={
       main:build("/hls/live/playlist.m3u8"),
       cam1:build("/hls/lastone/playlist.m3u8"),
@@ -183,7 +172,6 @@
       cam6:build("/hls/live6/playlist.m3u8"),
       cam7:build("/hls/live7/playlist.m3u8")
     };
-
     window.channelMap=[
       {id:'main',label:'MAIN',src:sources.main},
       {id:'cam1',label:'CAM1',src:sources.cam1},
@@ -196,305 +184,168 @@
     ];
   })();
 
-  /************** أدوات مساعدة تشغيل **************/
   function isReady(v){ return v && v.readyState >= 2; }
-
-  function waitCanPlay(v, timeout=6000){
+  function waitCanPlay(v, timeout=7000){
     return new Promise((res)=>{
       if(isReady(v)) return res(true);
-      let done = false;
-      const on = ()=>{ if(!done){ done=true; cleanup(); res(true); } };
-      const to = setTimeout(()=>{ if(!done){ done=true; cleanup(); res(false); } }, timeout);
-      const cleanup = ()=>{ v.removeEventListener('canplay', on); clearTimeout(to); };
-      v.addEventListener('canplay', on, { once:true });
-      try{ v.load(); }catch(_){}
+      let done=false; const on=()=>{if(!done){done=true;cleanup();res(true);}};
+      const to=setTimeout(()=>{if(!done){done=true;cleanup();res(false);}},timeout);
+      const cleanup=()=>{v.removeEventListener('canplay',on);clearTimeout(to);};
+      v.addEventListener('canplay',on,{once:true}); try{v.load();}catch(_){}
     });
   }
-
   async function safePlay(v){
     try{ await v.play(); return true; }
-    catch(_){
-      try{
-        v.muted = true; v.setAttribute('muted','');
-        await v.play(); return true;
-      }catch(__){ return false; }
-    }
+    catch(_){ try{ v.muted=true; v.setAttribute('muted',''); await v.play(); return true; }catch(__){ return false; } }
   }
+  function getSeekableRange(v){ try{ if(v.seekable&&v.seekable.length){ return {start:v.seekable.start(0), end:v.seekable.end(0)}; } }catch(_){ } return null; }
+  function snapIntoBuffer(v,t){ try{ const r=getSeekableRange(v); if(!r) return t; if(t<r.start) return r.start+0.05; if(t>r.end) return r.end-0.05; return t; }catch(_){ return t; } }
 
-  function getSeekableRange(v){
-    try{
-      if(v.seekable && v.seekable.length){
-        return { start: v.seekable.start(0), end: v.seekable.end(0) };
-      }
-    }catch(_){}
-    return null;
-  }
-
-  function snapIntoBuffer(v, t){
-    try{
-      const r = getSeekableRange(v); if(!r) return t;
-      if(t < r.start) return r.start + 0.05;
-      if(t > r.end  ) return r.end   - 0.05;
-      return t;
-    }catch(_){ return t; }
-  }
-
-  /************** مشغّلات الفيديو **************/
-  const mainPreviewEl = document.getElementById('mainPreview');
-  const activeCamEl   = document.getElementById('activeCam');
+  const mainPreviewEl=document.getElementById('mainPreview');
+  const activeCamEl=document.getElementById('activeCam');
 
   let mainPlayer, activePlayer, started=false, tickerId=null;
 
   function createVideo(parent){
-    parent.innerHTML = '';
-    const v = document.createElement('video');
-    v.playsInline = true; v.controls = false; v.preload = 'auto'; v.muted = true; v.setAttribute('muted','');
-    parent.appendChild(v);
-    return v;
+    parent.innerHTML='';
+    const v=document.createElement('video');
+    v.playsInline=true; v.controls=false; v.preload='auto'; v.muted=true; v.setAttribute('muted','');
+    parent.appendChild(v); return v;
   }
 
   function attachHls(video, src){
-    return new Promise(async (resolve)=>{
-      // انتظر حتى تُحمّل hls.min.js (إن وُجد)
-      if(!window.Hls){
-        // قد يتأخر تحميل /vendor/hls.min.js
-        for(let i=0;i<30 && !window.Hls;i++){ await new Promise(r=>setTimeout(r,100)); }
-      }
-
+    return new Promise(async(resolve)=>{
+      if(!window.Hls){ for(let i=0;i<30 && !window.Hls;i++){ await new Promise(r=>setTimeout(r,100)); } }
+      const onErr = (label, data)=>{
+        console.log('[HLS] ERROR', label, data);
+        if(data && (data.response?.code===404 || data.response?.code===502)){
+          sysBanner.show('فشل تحميل الفيديو: تحقق من ORIGIN_BASE/UPSTREAM_PREFIX وCORS في Function /hls.');
+        }
+      };
       if(window.Hls && window.Hls.isSupported()){
-        const h = new window.Hls({ lowLatencyMode:true, enableWorker:true, backBufferLength: 90 });
-        h.on(window.Hls.Events.ERROR, (_e, data)=>{
-          console.log('[HLS] ERROR', data);
-        });
-        h.loadSource(src);
-        h.attachMedia(video);
-        h.on(window.Hls.Events.MANIFEST_PARSED, ()=> resolve(true));
+        const h=new window.Hls({lowLatencyMode:true,enableWorker:true,backBufferLength:90});
+        h.on(window.Hls.Events.ERROR,(_e,data)=>onErr('err',data));
+        h.loadSource(src); h.attachMedia(video);
+        h.on(window.Hls.Events.MANIFEST_PARSED,()=>resolve(true));
       }else{
-        // Safari/iOS يدعم HLS أصلاً
-        video.src = src;
-        video.addEventListener('loadedmetadata', ()=> resolve(true), {once:true});
+        video.src=src;
+        video.addEventListener('loadedmetadata',()=>resolve(true),{once:true});
       }
     });
   }
 
-  function buildList(){
-    const ul = document.getElementById('streamList');
-    ul.innerHTML = '';
-    window.channelMap.forEach((ch, idx)=>{
-      const li = document.createElement('li');
-      li.className = 'stream-item' + (idx===1?' active':''); // اجعل CAM1 افتراضيًا للنشاط
-      li.dataset.id = ch.id;
-      li.innerHTML = `<div class="stream-name">${ch.label}</div>`;
-      li.addEventListener('click', ()=>selectActive(ch.id));
-      ul.appendChild(li);
+  function activateListHandlers(){
+    document.querySelectorAll('#streamList .stream-item').forEach(li=>{
+      li.addEventListener('click', ()=>selectActive(li.dataset.id));
     });
+  }
+
+  function renderListIfEmpty(){
+    const ul=document.getElementById('streamList');
+    if(ul.children.length<=1){ // لو لم تُحقن العناصر لأي سبب
+      ul.innerHTML = window.channelMap.map((ch,i)=>(
+        `<li class="stream-item${i===1?' active':''}" data-id="${ch.id}"><div class="stream-name">${ch.label}</div></li>`
+      )).join('');
+    }else{
+      // علّم العنصر الثاني (CAM1) نشط افتراضيًا
+      ul.querySelectorAll('.stream-item').forEach((li,i)=>li.classList.toggle('active', i===1));
+    }
+    activateListHandlers();
   }
 
   async function selectActive(id){
-    const ch = window.channelMap.find(x=>x.id===id);
+    const ch=window.channelMap.find(x=>x.id===id);
     if(!ch) return;
     document.querySelectorAll('.stream-item').forEach(li=>{
       li.classList.toggle('active', li.dataset.id===id);
     });
-    activePlayer = createVideo(activeCamEl);
+    activePlayer=createVideo(activeCamEl);
     await attachHls(activePlayer, ch.src);
     if(started){ await safePlay(activePlayer); }
   }
 
   async function initPlayers(){
-    buildList();
-
-    // MAIN في المعاينة
-    mainPlayer = createVideo(mainPreviewEl);
+    renderListIfEmpty();       // قائمة ظاهرة دائمًا
+    mainPlayer=createVideo(mainPreviewEl);
     await attachHls(mainPlayer, window.sources.main);
-
-    // CAM1 كافتراضي
     await selectActive('cam1');
   }
 
-  /************** بوابة البدء + مزامنة **************/
-  const gatePlay = document.getElementById('gatePlay');
-  const globalControls = document.getElementById('globalControls');
-  const timeLabel = document.getElementById('timeLabel');
-  const scrub = document.getElementById('scrub');
+  const gatePlay=document.getElementById('gatePlay');
+  const globalControls=document.getElementById('globalControls');
+  const timeLabel=document.getElementById('timeLabel');
+  const scrub=document.getElementById('scrub');
 
   async function startPlayback(){
     if(started) return;
-
-    // جهّز المصدرين أولًا
-    await Promise.all([
-      waitCanPlay(mainPlayer, 7000),
-      waitCanPlay(activePlayer, 7000)
-    ]);
-
-    // قفزة قريبة من الحافة
-    try{
-      const m = getSeekableRange(mainPlayer);
-      if(m) mainPlayer.currentTime = Math.max(m.start, m.end - 0.80);
-    }catch(_){}
-
-    const okMain = await safePlay(mainPlayer);
-    const okCam  = await safePlay(activePlayer);
-
-    if(!okMain){
-      gatePlay.classList.remove('hidden');
-      globalControls.classList.add('hidden');
-      sysBanner.show('اضغط تشغيل مرة أخرى للسماح بالتشغيل (iOS غالبًا).');
-      return;
-    }
-
-    started = true;
-    gatePlay.classList.add('hidden');
-    globalControls.classList.remove('hidden');
-    startTimeTicker();
-
-    try{
-      const m2 = getSeekableRange(activePlayer);
-      if(m2){
-        const near = Math.max(m2.start, m2.end - 0.80);
-        activePlayer.currentTime = snapIntoBuffer(activePlayer, near);
-      }
-    }catch(_){}
+    await Promise.all([waitCanPlay(mainPlayer,7000), waitCanPlay(activePlayer,7000)]);
+    try{ const m=getSeekableRange(mainPlayer); if(m) mainPlayer.currentTime=Math.max(m.start,m.end-0.80);}catch(_){}
+    const okMain=await safePlay(mainPlayer);
+    const okCam =await safePlay(activePlayer);
+    if(!okMain){ gatePlay.classList.remove('hidden'); globalControls.classList.add('hidden'); sysBanner.show('اضغط تشغيل مرة أخرى للسماح بالتشغيل (iOS).'); return; }
+    started=true; gatePlay.classList.add('hidden'); globalControls.classList.remove('hidden'); startTimeTicker();
   }
 
   function startTimeTicker(){
     stopTimeTicker();
-    const fmt = (t)=> {
-      t = Math.max(0, t|0);
-      const m = (t/60)|0, s = (t%60)|0;
-      return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-    };
-    tickerId = setInterval(()=>{
-      try{
-        const cur = mainPlayer.currentTime||0;
-        const dur = Math.max(cur, (getSeekableRange(mainPlayer)?.end||cur));
-        scrub.max = (dur||0).toFixed(2);
-        scrub.value = (cur||0).toFixed(2);
-        timeLabel.textContent = `${fmt(cur)} / ${fmt(dur)}`;
-      }catch(_){}
-    }, 250);
+    const fmt=(t)=>{t=Math.max(0,t|0); const m=(t/60)|0,s=(t%60)|0; return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;};
+    tickerId=setInterval(()=>{ try{
+      const cur=mainPlayer.currentTime||0;
+      const dur=Math.max(cur,(getSeekableRange(mainPlayer)?.end||cur));
+      scrub.max=(dur||0).toFixed(2); scrub.value=(cur||0).toFixed(2);
+      timeLabel.textContent=`${fmt(cur)} / ${fmt(dur)}`;
+    }catch(_){ } },250);
   }
   function stopTimeTicker(){ if(tickerId){ clearInterval(tickerId); tickerId=null; } }
 
-  /************** أزرار واجهة **************/
   document.getElementById('startBtn').addEventListener('click', startPlayback);
-
-  document.getElementById('btnSplit').addEventListener('click', ()=>{
-    const c = document.getElementById('playerContainer');
-    c.classList.toggle('split');
-  });
+  document.getElementById('btnSplit').addEventListener('click', ()=>document.getElementById('playerContainer').classList.toggle('split'));
   document.getElementById('btnFill').addEventListener('click', ()=>{
-    const c = document.getElementById('playerContainer');
-    if(c.classList.contains('main-full')){
-      c.classList.remove('main-full','cover-one');
-    }else{
-      c.classList.add('main-full'); // اضغط مرة ثانية لتفعيل cover
-      setTimeout(()=> c.classList.toggle('cover-one'), 50);
-    }
-  });
-  document.getElementById('btnSound').addEventListener('click', ()=>{
-    const m = mainPlayer; if(!m) return;
-    m.muted = !m.muted;
-    sysBanner.show(m.muted?'تم كتم الصوت':'تم تشغيل الصوت');
-  });
-
-  document.getElementById('gPlay').addEventListener('click', async ()=>{
-    if(!started){ await startPlayback(); return; }
-    if(mainPlayer.paused){ await safePlay(mainPlayer); await safePlay(activePlayer); }
-    else { mainPlayer.pause(); activePlayer.pause(); }
-  });
-  document.getElementById('gBack').addEventListener('click', ()=>{
-    try{
-      const t = Math.max(0, (mainPlayer.currentTime||0) - 5);
-      mainPlayer.currentTime = snapIntoBuffer(mainPlayer, t);
-      activePlayer.currentTime = snapIntoBuffer(activePlayer, t);
-    }catch(_){}
-  });
-  document.getElementById('gFwd').addEventListener('click', ()=>{
-    try{
-      const t = (mainPlayer.currentTime||0) + 5;
-      mainPlayer.currentTime = snapIntoBuffer(mainPlayer, t);
-      activePlayer.currentTime = snapIntoBuffer(activePlayer, t);
-    }catch(_){}
-  });
-  scrub.addEventListener('input', ()=>{
-    try{
-      const t = parseFloat(scrub.value)||0;
-      mainPlayer.currentTime = snapIntoBuffer(mainPlayer, t);
-      activePlayer.currentTime = snapIntoBuffer(activePlayer, t);
-    }catch(_){}
-  });
-
-  // تكبير/تصغير المعاينة
-  mainPreviewEl.addEventListener('click', ()=>{
-    const c = document.getElementById('playerContainer');
+    const c=document.getElementById('playerContainer');
     if(c.classList.contains('main-full')) c.classList.remove('main-full','cover-one');
-    else c.classList.add('main-full');
+    else { c.classList.add('main-full'); setTimeout(()=>c.classList.toggle('cover-one'),50); }
   });
-  window.addEventListener('keydown',(e)=>{
-    if(e.key.toLowerCase()==='f'){
-      const c = document.getElementById('playerContainer');
-      c.classList.toggle('main-full');
-    }
-  });
+  document.getElementById('btnSound').addEventListener('click', ()=>{ if(!mainPlayer) return; mainPlayer.muted=!mainPlayer.muted; sysBanner.show(mainPlayer.muted?'تم كتم الصوت':'تم تشغيل الصوت');});
+  document.getElementById('gPlay').addEventListener('click', async ()=>{ if(!started){ await startPlayback(); return; } if(mainPlayer.paused){ await safePlay(mainPlayer); await safePlay(activePlayer);} else { mainPlayer.pause(); activePlayer.pause(); }});
+  document.getElementById('gBack').addEventListener('click', ()=>{ try{ const t=Math.max(0,(mainPlayer.currentTime||0)-5); mainPlayer.currentTime=snapIntoBuffer(mainPlayer,t); activePlayer.currentTime=snapIntoBuffer(activePlayer,t);}catch(_){ }});
+  document.getElementById('gFwd').addEventListener('click', ()=>{ try{ const t=(mainPlayer.currentTime||0)+5; mainPlayer.currentTime=snapIntoBuffer(mainPlayer,t); activePlayer.currentTime=snapIntoBuffer(activePlayer,t);}catch(_){ }});
+  mainPreviewEl.addEventListener('click', ()=>{ const c=document.getElementById('playerContainer'); c.classList.toggle('main-full'); });
+  window.addEventListener('keydown',(e)=>{ if(e.key.toLowerCase()==='f'){ document.getElementById('playerContainer').classList.toggle('main-full'); } });
 
-  /************** LiveKit (تحميل من /vendor فقط) **************/
-  async function loadScript(src){
-    return new Promise((res, rej)=>{
-      const s = document.createElement('script');
-      s.src = src; s.async = true; s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
-  }
+  /* LiveKit */
+  async function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
   async function ensureLiveKit(){
-    let LK = window.LiveKit || window.livekit || window.livekitClient;
-    if(!LK){
-      try{ await loadScript('/vendor/livekit-client.umd.min.js'); }catch(_){}
-      LK = window.LiveKit || window.livekit || window.livekitClient;
-    }
+    let LK=window.LiveKit||window.livekit||window.livekitClient;
+    if(!LK){ try{ await loadScript('/vendor/livekit-client.umd.min.js'); }catch(_){ } LK=window.LiveKit||window.livekit||window.livekitClient; }
     if(!LK) throw new Error('LiveKit library did not load');
     return LK;
   }
-
-  let lkRoom = null;
+  let lkRoom=null;
   async function joinLiveKit(){
     try{
-      const LK = await ensureLiveKit();
-      const connectFn = (LK.connect || (window.livekitClient && window.livekitClient.connect) || (window.LiveKit && window.LiveKit.connect));
-      if(typeof connectFn !== 'function') throw new Error('LK.connect not available');
-
-      const roomName = (document.getElementById('roomName')||{}).value || 'studio-1';
-      const tokenUrl = `/api/token?room=${encodeURIComponent(roomName)}`; // غيّرها إن لزم
-      const token = await fetch(tokenUrl).then(r=>r.text());
-
-      const wsUrl = (window.LIVEKIT_WS || '').trim(); // اتركه فارغًا إن كنت تستخدم API يرجع wss داخل التوكن
-      lkRoom = await connectFn(wsUrl || undefined, token, {
-        autoSubscribe: true,
-        stopLocalTrackOnUnpublish: true,
-      });
-
+      const LK=await ensureLiveKit();
+      const connectFn=(LK.connect || (window.livekitClient&&window.livekitClient.connect) || (window.LiveKit&&window.LiveKit.connect));
+      if(typeof connectFn!=='function') throw new Error('LK.connect not available');
+      const roomName=(document.getElementById('roomName')||{}).value || 'studio-1';
+      const token=await fetch(`/api/token?room=${encodeURIComponent(roomName)}`).then(r=>r.text());
+      lkRoom=await connectFn(undefined, token, {autoSubscribe:true, stopLocalTrackOnUnpublish:true});
       sysBanner.show('تم الانضمام إلى الغرفة');
-    }catch(err){
-      console.error('joinLiveKit error', err);
-      alert('تعذّر الانضمام: ' + (err && err.message ? err.message : err));
-    }
+    }catch(err){ console.error('joinLiveKit error',err); alert('تعذّر الانضمام: '+(err?.message||err)); }
   }
-  function leaveLiveKit(){
-    try{ if(lkRoom){ lkRoom.disconnect(); lkRoom = null; sysBanner.show('تمت المغادرة'); } }catch(_){}
-  }
+  function leaveLiveKit(){ try{ if(lkRoom){ lkRoom.disconnect(); lkRoom=null; sysBanner.show('تمت المغادرة'); } }catch(_){ } }
 
-  /************** تهيئة **************/
   (async function init(){
     try{
-      await initPlayers();
+      renderListIfEmpty();          // يضمن ظهور القائمة دائمًا
+      await initPlayers();          // تهيئة المشغّلات
     }catch(e){
-      sysBanner.show('فشل تحميل الفيديو: تحقق من HLS_BASE وORIGIN_BASE وCORS.');
       console.error(e);
+      sysBanner.show('فشل تحميل الفيديو: تحقق من /hls عبر Functions وORIGIN_BASE/CORS.');
     }
   })();
   </script>
 
-  <!-- عناصر تحكم LiveKit البسيطة (اختيارية) -->
+  <!-- عناصر تحكم LiveKit -->
   <div style="position:fixed;bottom:10px;right:10px;z-index:20;display:flex;gap:8px;background:#0b0b0fe6;border:1px solid #ffffff26;padding:10px;border-radius:12px">
     <div style="color:#fff;font-size:12px;display:flex;align-items:center;gap:6px">
       <span>(LiveKit) الغرفة المباشرة</span>

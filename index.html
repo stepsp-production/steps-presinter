@@ -196,34 +196,56 @@
   </script>
 
   <script>
-    /* ===== مصادر البث ===== */
-    (function(){
-      const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
-      const build=(p)=>BASE?`${BASE}${p}`:p;
+  // يختبر هل /hls عند الدومين الحالي يعيد m3u8 حقيقي، وإلا يستخدم FALLBACK_ORIGIN
+  async function pickHlsBase() {
+    const localProbe = "/hls/live/playlist.m3u8";
+    try {
+      const r = await fetch(localProbe, { method: "GET", cache: "no-store" });
+      // نتحقق من الهيدر والنص: إذا مو M3U8 أو 502 فنفشل
+      const ct = r.headers.get("content-type") || "";
+      const okType = /application\/vnd\.apple\.mpegurl|audio\/mpegurl|application\/x-mpegURL/i.test(ct);
+      if (!r.ok || !okType) throw new Error("not m3u8");
+      const text = await r.text();
+      if (!/^#EXTM3U/m.test(text)) throw new Error("no EXTM3U");
+      return ""; // استخدم /hls عند نفس الدومين
+    } catch {
+      return (window.FALLBACK_ORIGIN || "").replace(/\/$/, "");
+    }
+  }
 
-      window.sources={
-        main:build("/hls/live/playlist.m3u8"),
-        cam1:build("/hls/lastone/playlist.m3u8"),
-        cam2:build("/hls/live2/playlist.m3u8"),
-        cam3:build("/hls/live3/playlist.m3u8"),
-        cam4:build("/hls/live4/playlist.m3u8"),
-        cam5:build("/hls/live5/playlist.m3u8"),
-        cam6:build("/hls/live6/playlist.m3u8"),
-        cam7:build("/hls/live7/playlist.m3u8")
-      };
+  // نبني المصادر بناءً على ما سبق
+  (async function () {
+    const base = await pickHlsBase();      // "" يعني استخدم /hls على نفس الدومين
+    const build = (p) => base ? (base + p) : p;
 
-      window.channelMap=[
-        {id:'main',label:'MAIN',src:sources.main},
-        {id:'cam1',label:'Cam1',src:sources.cam1},
-        {id:'cam2',label:'Cam2',src:sources.cam2},
-        {id:'cam3',label:'Cam3',src:sources.cam3},
-        {id:'cam4',label:'Cam4',src:sources.cam4},
-        {id:'cam5',label:'Cam5',src:sources.cam5},
-        {id:'cam6',label:'Drone',src:sources.cam6},
-        {id:'cam7',label:'Sineflex',src:sources.cam7},
-      ];
-    })();
-  </script>
+    window.sources = {
+      main: build("/hls/live/playlist.m3u8"),
+      cam1: build("/hls/lastone/playlist.m3u8"),
+      cam2: build("/hls/live2/playlist.m3u8"),
+      cam3: build("/hls/live3/playlist.m3u8"),
+      cam4: build("/hls/live4/playlist.m3u8"),
+      cam5: build("/hls/live5/playlist.m3u8"),
+      cam6: build("/hls/live6/playlist.m3u8"),
+      cam7: build("/hls/live7/playlist.m3u8"),
+    };
+
+    window.channelMap = [
+      { id: 'main', label: 'MAIN',    src: sources.main },
+      { id: 'cam1', label: 'Cam1',    src: sources.cam1 },
+      { id: 'cam2', label: 'Cam2',    src: sources.cam2 },
+      { id: 'cam3', label: 'Cam3',    src: sources.cam3 },
+      { id: 'cam4', label: 'Cam4',    src: sources.cam4 },
+      { id: 'cam5', label: 'Cam5',    src: sources.cam5 },
+      { id: 'cam6', label: 'Drone',   src: sources.cam6 },
+      { id: 'cam7', label: 'Sineflex',src: sources.cam7 },
+    ];
+
+    // لو عندك init يعتمد على window.sources، تأكد أنه يبدأ بعد هذا السكربت
+    // مثال بسيط: لو كان عندك initOnce() استدعه هنا:
+    // initOnce();
+  })();
+</script>
+
 
   <script>
     /* ===== تشغيل HLS المحافظ (من نفس النطاق) ===== */

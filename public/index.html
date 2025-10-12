@@ -162,24 +162,30 @@
 
     // عنوان خادم الـToken (Render)
     const TOKEN_BASE = "https://steps-livekit-api.onrender.com";
+</script>
+    <script>
+  async function loadScript(src){
+    return new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = src; s.async = true; s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  async function ensureHls(){
+    if (window.Hls) return window.Hls;
+    await loadScript('/vendor/hls.min.js');
+    if (!window.Hls) throw new Error('Hls library did not load');
+    return window.Hls;
+  }
+  async function ensureLiveKit(){
+    if (window.LiveKit) return window.LiveKit;
+    await loadScript('/vendor/livekit-client.umd.min.js');
+    if (!window.LiveKit) throw new Error('LiveKit library did not load');
+    return window.LiveKit;
+  }
+</script>
 
-    // تحميل LiveKit من نفس النطاق عند الطلب
-    async function loadScript(src){
-      return new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = src; s.async = true;
-        s.onload = () => res();
-        s.onerror = (e) => rej(e);
-        document.head.appendChild(s);
-      });
-    }
-    async function ensureLiveKit(){
-      if (window.LiveKit) return window.LiveKit;
-      await loadScript('/vendor/livekit-client.umd.min.js');
-      if (!window.LiveKit) throw new Error('LiveKit library did not load');
-      return window.LiveKit;
-    }
-
+<script>
     function toast(msg){
       const t=document.getElementById('errToast');
       t.textContent=msg; t.style.display='block';

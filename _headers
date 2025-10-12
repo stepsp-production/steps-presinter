@@ -1,0 +1,7 @@
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; connect-src 'self' https://steps-livekit-api.onrender.com https://*.trycloudflare.com https://*.workers.dev wss://*.livekit.cloud; media-src *; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src https://www.youtube.com https://player.vimeo.com;
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Cross-Origin-Resource-Policy: cross-origin
+  Cache-Control: no-store

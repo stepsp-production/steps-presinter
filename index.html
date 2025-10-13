@@ -45,7 +45,7 @@
 
     #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap}
     #utilityControls{top:10px;right:10px}
-    #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bد);align-items:center;min-width:340px}
+    #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
     #globalControls.hidden{display:none}
 
     button{-webkit-tap-highlight-color:transparent;appearance:none;border:0;outline:0;cursor:pointer;background:var(--btn-bg);color:var(--btn-txt);padding:11px 12px;font-size:12px;font-weight:800;border-radius:12px;letter-spacing:.2px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 18px #000a,0 0 0 0 rgba(0,193,154,.28);transition:transform .12s,box-shadow .12s,background .12s}
@@ -76,16 +76,7 @@
   <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
     <aside id="streamPanel" aria-label="مصادر البث">
       <div class="panel-title">SOURCES</div>
-      <ul id="streamList">
-        <li class="stream-item active" data-id="cam1"><div class="stream-name">CAM1</div></li>
-        <li class="stream-item" data-id="main"><div class="stream-name">MAIN</div></li>
-        <li class="stream-item" data-id="cam2"><div class="stream-name">CAM2</div></li>
-        <li class="stream-item" data-id="cam3"><div class="stream-name">CAM3</div></li>
-        <li class="stream-item" data-id="cam4"><div class="stream-name">CAM4</div></li>
-        <li class="stream-item" data-id="cam5"><div class="stream-name">CAM5</div></li>
-        <li class="stream-item" data-id="cam6"><div class="stream-name">DRONE</div></li>
-        <li class="stream-item" data-id="cam7"><div class="stream-name">SINEFLEX</div></li>
-      </ul>
+      <ul id="streamList"></ul>
     </aside>
 
     <div id="activeCam" class="videoFrame" aria-label="الكاميرا النشطة"></div>
@@ -120,10 +111,10 @@
     <div id="sysBanner"></div>
   </div>
 
-  <!-- ثوابت قابلة للتعديل -->
+  <!-- إعدادات -->
   <script>
-    // استخدم /hls من نفس النطاق (Functions). يمكن تغييرها إلى Worker خارجي إذا لزم.
-    window.HLS_BASE = "";
+    // استخدم ورَكر HLS الخارجي الثابت (حل فوري لمشكلة 502 و CORS)
+    window.HLS_BASE = "https://hls-proxy.it-f2c.workers.dev";
 
     // API لاستخراج التوكن
     window.API_BASE = "https://steps-livekit-api.onrender.com";
@@ -132,17 +123,18 @@
     window.LK_URL = "wss://presinter-stream-gjthpz2z.livekit.cloud";
   </script>
 
-  <!-- تحميل HLS محليًا من Function /vendor -->
+  <!-- تحميل HLS من /vendor (محلي عبر Pages) -->
   <script defer src="/vendor/hls.min.js"></script>
 
   <script>
   /* تنبيه صغير */
   const sysBanner=(()=>{const el=document.getElementById('sysBanner');return{show:(m)=>{try{el.textContent=m;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),4500);}catch(_){console.log(m)}}}})();
 
-  /* تعريف المصادر */
+  /* تعريف المصادر والقائمة */
   (function(){
     const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
     const build=(p)=>BASE?`${BASE}${p}`:p;
+
     window.sources={
       main:build("/hls/live/playlist.m3u8"),
       cam1:build("/hls/lastone/playlist.m3u8"),
@@ -153,7 +145,8 @@
       cam6:build("/hls/live6/playlist.m3u8"),
       cam7:build("/hls/live7/playlist.m3u8")
     };
-    window.channelMap=[
+
+    const channelMap=[
       {id:'cam1',label:'CAM1',src:sources.cam1},
       {id:'main',label:'MAIN',src:sources.main},
       {id:'cam2',label:'CAM2',src:sources.cam2},
@@ -163,6 +156,19 @@
       {id:'cam6',label:'DRONE',src:sources.cam6},
       {id:'cam7',label:'SINEFLEX',src:sources.cam7},
     ];
+    window.channelMap = channelMap;
+
+    const ul=document.getElementById('streamList');
+    ul.innerHTML='';
+    channelMap.forEach((ch,i)=>{
+      const li=document.createElement('li');
+      li.className='stream-item'+(i===0?' active':'');
+      li.dataset.id=ch.id;
+      const name=document.createElement('div'); name.className='stream-name'; name.textContent=ch.label;
+      li.appendChild(name);
+      li.onclick=()=>selectActive(ch.id);
+      ul.appendChild(li);
+    });
   })();
 
   function createVideo(parent){
@@ -182,7 +188,7 @@
       const onError=(data)=>{
         console.log('[HLS] ERROR', data);
         const code = data?.response?.code || data?.response?.status || 0;
-        if(code===502 || code===404){ sysBanner.show('فشل تحميل الفيديو: تحقق من /hls وORIGIN_BASE وUPSTREAM_PREFIX وCORS.'); }
+        if(code===502 || code===404){ sysBanner.show('فشل تحميل الفيديو: تحقق من HLS_BASE أو استعمل الوَركر الموصى به.'); }
       };
 
       if(hlsSupported()){
@@ -224,12 +230,6 @@
 
   let mainPlayer=null, activePlayer=null, started=false, tickerId=null;
 
-  function activateListHandlers(){
-    document.querySelectorAll('#streamList .stream-item').forEach(li=>{
-      li.onclick=()=>selectActive(li.dataset.id);
-    });
-  }
-
   async function selectActive(id){
     const ch=window.channelMap.find(x=>x.id===id);
     if(!ch) return;
@@ -240,11 +240,10 @@
   }
 
   async function initPlayers(){
-    activateListHandlers();
     mainPlayer=createVideo(mainPreviewEl);
     const okMain = await attachHls(mainPlayer, window.sources.main);
     activePlayer=createVideo(activeCamEl);
-    const okCam  = await attachHls(activePlayer, window.channelMap[0].src);
+    const okCam  = await attachHls(activePlayer, (window.channelMap[0]||{}).src || window.sources.main);
     if(!okMain || !okCam){ sysBanner.show('مصادر الفيديو غير جاهزة (قد يكون 502/404).'); }
   }
 
@@ -278,7 +277,14 @@
   }
 
   document.getElementById('startBtn').addEventListener('click', startPlayback);
-  document.getElementById('btnSplit').addEventListener('click', ()=>document.getElementById('playerContainer').classList.toggle('split'));
+  document.getElementById('btnSplit').addEventListener('click', ()=>{
+    const root=document.getElementById('playerContainer');
+    const modes=['','mode1','mode2','mode3'];
+    if(!root.classList.contains('split')){ root.classList.add('split','mode1'); return; }
+    const m = modes.findIndex(md=>root.classList.contains(md));
+    root.classList.remove('mode1','mode2','mode3');
+    if(m===1) root.classList.add('mode2'); else if(m===2) root.classList.add('mode3'); else root.classList.remove('split');
+  });
   document.getElementById('btnFill').addEventListener('click', ()=>{
     const c=document.getElementById('playerContainer');
     if(c.classList.contains('main-full')) c.classList.remove('main-full','cover-one');
@@ -291,15 +297,19 @@
   document.getElementById('mainPreview').addEventListener('click', ()=>{ const c=document.getElementById('playerContainer'); c.classList.toggle('main-full'); });
   window.addEventListener('keydown',(e)=>{ if(e.key.toLowerCase()==='f'){ document.getElementById('playerContainer').classList.toggle('main-full'); } });
 
-  (async function init(){ try{ await initPlayers(); }catch(e){ console.error(e); sysBanner.show('فشل التهيئة. تحقق من /hls وORIGIN_BASE/CORS.'); } })();
+  (async function init(){ try{ await initPlayers(); }catch(e){ console.error(e); sysBanner.show('فشل التهيئة. تحقق من HLS_BASE/CORS.'); } })();
   </script>
 
-  <!-- LiveKit -->
+  <!-- LiveKit (من نطاقك فقط بلا CDNs بسبب CSP) -->
   <script>
-    function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+    function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.async=true; s.onload=()=>res(); s.onerror=()=>rej(new Error('script load failed: '+src)); document.head.appendChild(s); }); }
     async function ensureLiveKit(){
       let LK=window.livekitClient || window.LivekitClient || window.LiveKit;
-      if(!LK){ try{ await loadScript('/vendor/livekit-client.umd.min.js'); }catch(_){ } LK=window.livekitClient || window.LivekitClient || window.LiveKit; }
+      if(!LK){
+        // يجب أن يتوفر هذا الملف عندك (سواء ثابت أو عبر Function /vendor/[...path].js)
+        await loadScript('/vendor/livekit-client.umd.min.js').catch(()=>{});
+        LK=window.livekitClient || window.LivekitClient || window.LiveKit;
+      }
       if(!LK) throw new Error('LiveKit library did not load');
       return LK;
     }
@@ -307,15 +317,14 @@
     let lkRoom=null;
     async function joinLiveKit(){
       try{
-        // اطلب الإذن أولاً ليظهر نافذة سماح
-        try{ await navigator.mediaDevices.getUserMedia({video:true,audio:true}); }catch(e){ alert('اسمح للكاميرا/المايك ثم أعد المحاولة'); return; }
+        // اطلب الإذن أولاً لظهور نافذة السماح
+        try{ await navigator.mediaDevices.getUserMedia({video:true,audio:true}); }catch(e){ alert('اسمح للكاميرا/المايك من المتصفح ثم أعد المحاولة.'); return; }
 
         const LK = await ensureLiveKit();
         const connectFn = (LK.connect || (window.livekitClient && window.livekitClient.connect) || (window.LivekitClient && window.LivekitClient.connect));
         if(typeof connectFn!=='function') throw new Error('LK.connect not available');
 
         const roomName = (document.getElementById('roomName')||{}).value || 'studio-1';
-
         const r = await fetch(`${window.API_BASE}/api/token?room=${encodeURIComponent(roomName)}`);
         let token='', wsUrl=window.LK_URL;
         try{ const j=await r.json(); token=j.token||j.accessToken||j.jwt||''; wsUrl=j.url||j.wsUrl||wsUrl; }catch{ token=await r.text(); }

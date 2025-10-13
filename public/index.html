@@ -64,7 +64,7 @@
     .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
     .split .hint,.main-full .hint{display:none}
 
-    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
+    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap}
     #utilityControls{top:10px;right:10px}
     #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
     #globalControls.hidden{display:none}
@@ -83,7 +83,7 @@
     .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
     #startBtn{min-width:160px}
 
-    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;}
+    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff;}
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
     .stream-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20); backdrop-filter: blur(2px); transition:background .12s, border-color .12s, transform .06s;}
@@ -92,13 +92,6 @@
     .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
     .dot{width:8px;height:8px;border-radius:50%;background:#808080;border:1px solid #0006;box-shadow:0 0 0 1px #0008 inset}
     .dot.ok{background:#20d05a}
-
-    .ui-hidden #streamPanel,
-    .ui-hidden #utilityControls,
-    .ui-hidden #globalControls{opacity:0; pointer-events:none}
-    .ui-visible #streamPanel,
-    .ui-visible #utilityControls,
-    .ui-visible #globalControls{opacity:1; pointer-events:auto}
 
     .layer{position:absolute; inset:0;}
     .fade-in{animation:fadeIn .18s ease forwards}
@@ -126,7 +119,7 @@
   </style>
 </head>
 <body>
-  <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
+  <div id="playerContainer" aria-label="مشغّل متعدد الكاميرات">
     <aside id="streamPanel" aria-label="مصادر البث">
       <div class="panel-title">SOURCES</div>
       <ul id="streamList"></ul>
@@ -175,40 +168,31 @@
       <button id="lkLeave" disabled>مغادرة</button>
       <button id="lkToggleCam" disabled>الكاميرا</button>
       <button id="lkToggleMic" disabled>المايك</button>
-      <span id="lkHint" class="text">يجب الضغط على “تشغيل/بدء المزامنة” أولاً للسماح بالتشغيل.</span>
+      <span id="lkHint" class="text">اضغط “تشغيل/بدء المزامنة” أولًا للسماح بالتشغيل.</span>
     </div>
     <div id="lkGrid" aria-live="polite"></div>
   </div>
 
-  <!-- اختيار قواعد التشغيل -->
+  <!-- إعداد قواعد التشغيل -->
   <script>
-    // 1) التقاط ?hls=... أو window.HLS_BASE أو '/hls'
     (function pickHlsBase(){
       const u=new URL(location.href);
       const q=u.searchParams.get('hls');
       const base = (q || window.HLS_BASE || '/hls').replace(/\/+$/,'');
       window.HLS_BASE = base;
     })();
-    // 2) إعداد LiveKit (عدّل حسب بيئتك):
-    window.LIVEKIT_WS = window.LIVEKIT_WS || 'wss://presinter-stream-gjthpz2z.livekit.cloud';
-    window.TOKEN_BASE = window.TOKEN_BASE || 'https://steps-livekit-api.onrender.com';
+    window.LIVEKIT_WS  = window.LIVEKIT_WS  || 'wss://presinter-stream-gjthpz2z.livekit.cloud';
+    window.TOKEN_BASE  = window.TOKEN_BASE  || 'https://steps-livekit-api.onrender.com';
   </script>
 
-  <!-- مصادر البث (مع إصلاح تكرار /hls) -->
+  <!-- مصادر البث (تصحيح تكرار /hls وعدم إخفاء القائمة أبداً) -->
   <script>
     (function(){
-      const BASE = String(window.HLS_BASE||'').replace(/\/+$/,''); // بدون / في النهاية
+      const BASE = String(window.HLS_BASE||'').replace(/\/+$/,'');
 
       function build(p){
-        // p مثل: '/hls/live/playlist.m3u8'
-        let path = String(p||'');
-        // إزالة الفواصل الزائدة:
-        path = '/' + path.replace(/^\/+/, '');
-        // إذا كان BASE ينتهي بـ /hls فلا نكرّر 'hls/' مرة ثانية
-        if (/\/hls$/i.test(BASE)) {
-          path = path.replace(/^\/hls(\/|$)/i, '/');
-        }
-        // جمع base + path بفاصلة واحدة فقط
+        let path = '/' + String(p||'').replace(/^\/+/, '');
+        if (/\/hls$/i.test(BASE)) path = path.replace(/^\/hls(\/|$)/i, '/');
         return BASE + path;
       }
 
@@ -242,8 +226,6 @@
     const SHOW_MIN_BUF  = 1.25;
     const STARVED_RESEEK= 0.25;
 
-    const hasUrl=(u)=>typeof u==='string' && /(https?:\/\/[^/]+)?\/hls\/.+\.m3u8(\?.*)?$/i.test(u);
-
     function getSeekableRange(v){try{const r=v.seekable;if(!r||!r.length)return null;return{start:r.start(r.length-1),end:r.end(r.length-1)};}catch(e){return null;}}
     function capLiveEdge(v,t){const m=getSeekableRange(v); if(!m) return t; return Math.min(t, m.end - SAFETY_EDGE);}
     function bufferedAhead(v){try{const b=v.buffered;const t=v.currentTime||0;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);if(t>=s && t<=e) return Math.max(0,e-t);} }catch(e){} return 0;}
@@ -253,46 +235,20 @@
 
     async function attachHlsWithAvc(video,url){
       const Hls = await ensureHls();
-      const HLS_CFG={
+      const hls=new Hls({
         lowLatencyMode:false,
         liveSyncDurationCount:3, liveMaxLatencyDurationCount:6, maxLiveSyncPlaybackRate:1.0,
         maxBufferLength:18, backBufferLength:14, maxBufferSize:40*1000*1000,
         capLevelToPlayerSize:true, enableWorker:true,
         maxBufferHole:0.15, maxSeekHole:0.25, nudgeOffset:0.12, nudgeMaxRetry:10,
         abrMaxWithRealBitrate:true,
-        fragLoadingMaxRetry:6, manifestLoadingMaxRetry:6, levelLoadingMaxRetry:5,
-        fragLoadingRetryDelay:350, manifestLoadingRetryDelay:500, levelLoadingRetryDelay:500,
-        fragLoadingTimeOut:10000, manifestLoadingTimeOut:8000, levelLoadingTimeOut:8000,
+        fragLoadingMaxRetry:4, manifestLoadingMaxRetry:4, levelLoadingMaxRetry:3,
+        fragLoadingRetryDelay:600, manifestLoadingRetryDelay:700, levelLoadingRetryDelay:700,
         xhrSetup:(xhr)=>{try{xhr.withCredentials=false;}catch(e){}}
-      };
-      const isAvc=(l)=>/avc1/i.test(l?.codecs||l?.codecsVideo||"");
-      const pickBestAvc=(levels,capHeight=480)=>{
-        if(!levels?.length) return -1;
-        const avc=levels.map((l,i)=>({i,h:l.height||0,avc:isAvc(l)})).filter(x=>x.avc);
-        if(!avc.length) return 0;
-        let c=avc.filter(x=>x.h && x.h<=capHeight); if(!c.length) c=avc;
-        c.sort((a,b)=>a.h-b.h); return c[c.length-1].i;
-      };
-      const highestAvcIndex=(levels)=>{let m=-1;(levels||[]).forEach((l,i)=>{if(isAvc(l))m=i;});return m>=0?m:((levels&&levels.length)?levels.length-1:-1);};
-
-      const hls=new Hls({...HLS_CFG}); video.__hls=hls; hls.attachMedia(video);
-      hls.on(Hls.Events.MEDIA_ATTACHED,()=>{hls.loadSource(url);});
-      hls.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{try{
-        const lv=data?.levels||[];const s=pickBestAvc(lv,480);const mx=highestAvcIndex(lv);
-        if(s>=0){hls.startLevel=s;hls.currentLevel=s;hls.nextLevel=s;}
-        if(mx>=0){hls.autoLevelCapping=mx;}
-      }catch(e){}});
-      hls.on(Hls.Events.ERROR,(_,err)=>{console.warn('[HLS] ERROR',err);
-        if(err?.fatal){ try{hls.destroy();}catch(_){ } }
       });
-      const starve=()=>{try{
-        const m=getSeekableRange(video); if(!m) return;
-        const near = Math.max(m.start, m.end - SAFETY_EDGE - STARVED_RESEEK);
-        video.currentTime = snapIntoBuffer(video, near);
-        video.play().catch(()=>{});
-      }catch(e){}};
-      video.addEventListener('waiting',()=>{ if(bufferedAhead(video)<0.3) starve(); });
-      video.addEventListener('stalled',()=>{ if(bufferedAhead(video)<0.3) starve(); });
+      video.__hls=hls; hls.attachMedia(video);
+      hls.on(Hls.Events.MEDIA_ATTACHED,()=>hls.loadSource(url));
+      hls.on(Hls.Events.ERROR,(_,err)=>{console.warn('[HLS] ERROR',err); if(err?.fatal){ try{hls.destroy();}catch(_){ } }});
       return hls;
     }
 
@@ -353,7 +309,8 @@
 
     function buildStreamList(){
       streamList.innerHTML='';
-      (window.channelMap||[]).filter(ch=>hasUrl(ch.src)).forEach(ch=>{
+      // لا نستخدم أي فلتر — نعرض الجميع دائماً:
+      (window.channelMap||[]).forEach(ch=>{
         const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam=ch.id;
         const dot=document.createElement('span'); dot.className='dot'; dot.title='status';
         const name=document.createElement('div'); name.className='stream-name'; name.textContent=ch.label;
@@ -366,6 +323,7 @@
         const items=[...document.querySelectorAll('.stream-item')];
         const n=Number(e.key); if(n>=1 && n<=items.length) items[n-1].click();
       });
+      // فحص الحالة كل 8 ثوان
       pingStreams();
       setInterval(pingStreams, 8000);
     }
@@ -376,6 +334,7 @@
       await Promise.all(items.map(async li=>{
         const id=li.dataset.cam; const src=window.sources[id];
         const dot=li.querySelector('.dot');
+        if(!src){ dot.classList.remove('ok'); dot.title='NO URL'; return; }
         try{
           const r=await fetch(src, {method:'HEAD', cache:'no-store', mode:'cors'});
           dot.classList.toggle('ok', r.ok);
@@ -403,7 +362,7 @@
 
       if(!target.ready) await new Promise(r => v.addEventListener('canplay', r, {once:true}));
 
-      let T = capLiveEdge(v, (mainPlayer.currentTime||0));
+      let T = (mainPlayer && isFinite(mainPlayer.currentTime)) ? mainPlayer.currentTime : 0;
       v.currentTime = snapIntoBuffer(v, T);
       try{ await v.play(); }catch(_){}
 
@@ -412,14 +371,10 @@
       setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
     }
 
-    let uiTimer=null;
-    function showUI(){root.classList.remove('ui-hidden');root.classList.add('ui-visible');clearTimeout(uiTimer);uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500);}
-    ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true}));
-    [document.getElementById('streamPanel'),globalControls,document.getElementById('utilityControls')].forEach(el=>{
-      el.addEventListener('mouseenter',()=>{clearTimeout(uiTimer);root.classList.remove('ui-hidden');root.classList.add('ui-visible');});
-      el.addEventListener('mouseleave',showUI);
+    // لا إخفاء تلقائي للواجهة الآن حتى لا تختفي القائمة
+    document.getElementById('mainPreview').addEventListener('click',()=>{
+      if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull);
     });
-    setTimeout(showUI,1000);
 
     async function startPlayback(){
       if(started) return; started=true;
@@ -438,27 +393,19 @@
     function startTimeTicker(){
       if(ticker) return;
       ticker=setInterval(()=>{
-        if(isScrubbing) return;
+        if(isScrubbing || !mainPlayer) return;
         let d=0, ct=mainPlayer.currentTime||0;
         const r=mainPlayer.seekable; if(r&&r.length) d=r.end(r.length-1);
         if(d&&isFinite(d)) scrub.max=d;
         scrub.value=ct||0; timeLabel.textContent=`${fmt(ct)} / ${fmt(d||0)}`;
-        if(activePlayer && bufferedAhead(activePlayer) < 0.30){
-          const m=getSeekableRange(activePlayer);
-          if(m){
-            const near = Math.max(m.start, m.end - SAFETY_EDGE - STARVED_RESEEK);
-            activePlayer.currentTime = snapIntoBuffer(activePlayer, near);
-          }
-        }
       },250);
     }
 
-    const gSeek=(ofs)=>{ if(!started) return; const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs); mainPlayer.currentTime=t; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,t); };
+    const gSeek=(ofs)=>{ if(!started || !mainPlayer) return; const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs); mainPlayer.currentTime=t; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,t); };
     document.getElementById('gBack').addEventListener('click',()=>gSeek(-5));
     document.getElementById('gFwd').addEventListener('click',()=>gSeek( 5));
     document.getElementById('gPlay').addEventListener('click',async()=>{ if(!started) return; if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}} else mainPlayer.pause(); });
 
-    const scrub=document.getElementById('scrub');
     scrub.addEventListener('input',()=>{ if(started) isScrubbing=true; });
     scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(mainPlayer, parseFloat(scrub.value)||0); mainPlayer.currentTime=nt; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,nt); isScrubbing=false; });
 
@@ -480,12 +427,9 @@
         root.classList.add('split');
       }
     });
-    document.getElementById('btnSound').addEventListener('click',()=>{ if(!started) return; mainPlayer.muted=!mainPlayer.muted; if(!mainPlayer.muted) mainPlayer.play().catch(()=>{}); });
-
-    document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
+    document.getElementById('btnSound').addEventListener('click',()=>{ if(!started || !mainPlayer) return; mainPlayer.muted=!mainPlayer.muted; if(!mainPlayer.muted) mainPlayer.play().catch(()=>{}); });
 
     document.getElementById('startBtn').addEventListener('click',startPlayback);
-
     document.addEventListener('keydown',(e)=>{
       if(e.key===' '||e.key==='Enter'){ e.preventDefault(); startPlayback(); }
       if(e.key==='S'||e.key==='s'){ document.getElementById('btnSplit').click(); }
@@ -494,26 +438,6 @@
       if(e.key==='ArrowLeft'){ document.getElementById('gBack').click(); }
       if(e.key==='ArrowRight'){ document.getElementById('gFwd').click(); }
     });
-
-    async function setActiveCamSmooth(id){
-      if(!window.sources[id] || id===currentCam) return;
-      currentCam=id; markActiveList();
-      const target=getOrCreateCam(id);
-      const v=target.video, w=target.wrap;
-
-      if(!target.ready) await new Promise(r => v.addEventListener('canplay', r, {once:true}));
-
-      let T = capLiveEdge(v, (mainPlayer.currentTime||0));
-      v.currentTime = snapIntoBuffer(v, T);
-      try{ await v.play(); }catch(_){}
-
-      w.className='layer fade-in'; w.style.opacity='1';
-      const old = activePlayer, oldWrap = old ? old.parentElement : null;
-      setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
-    }
-
-    // بَدء
-    initOnce();
   </script>
 
   <!-- LiveKit -->
@@ -627,20 +551,6 @@
       const en = !lkRoom.localParticipant.isMicrophoneEnabled;
       await lkRoom.localParticipant.setMicrophoneEnabled(en);
     });
-  </script>
-
-  <!-- Debug HLS (اختياري) -->
-  <script>
-    (function addHlsDebug(){
-      function wireDebug(video){
-        const h=video && video.__hls; if(!h) return;
-        h.on(window.Hls.Events.MANIFEST_PARSED,(_,data)=>{console.log('[HLS] MANIFEST_PARSED levels=',(data&&data.levels||[]).map(l=>({h:l.height,codecs:l.codecs})));});
-        h.on(window.Hls.Events.LEVEL_LOADED,(_,data)=>{console.log('[HLS] LEVEL_LOADED targetduration=',data?.details?.targetduration,'frags=',data?.details?.fragments?.length);});
-        h.on(window.Hls.Events.ERROR,(_,err)=>{console.warn('[HLS] ERROR',err);});
-      }
-      const mo=new MutationObserver(()=>{document.querySelectorAll('video').forEach(v=>{if(!v.__debugWired && v.__hls){v.__debugWired=true;wireDebug(v);}});});
-      mo.observe(document.body,{childList:true,subtree:true});
-    })();
   </script>
 </body>
 </html>

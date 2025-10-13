@@ -1,2 +1,2 @@
-/*
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data: https:; media-src 'self' blob: data: https:; connect-src 'self' https://steps-livekit-api.onrender.com https://hls-proxy.it-f2c.workers.dev https://fan-receiving-infinite-thus.trycloudflare.com wss://*.livekit.cloud https://*.googlevideo.com https://player.vimeo.com https://*.vimeo.com; frame-src https://www.youtube.com https://player.vimeo.com;
+/
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; connect-src 'self'; media-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; child-src 'self' blob:;

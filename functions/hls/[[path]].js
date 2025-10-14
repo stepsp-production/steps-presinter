@@ -2,18 +2,15 @@ export async function onRequest({ request, env, params }) {
   const ORIGIN_RAW = (env.ORIGIN_BASE || '').replace(/\/+$/, '');
   if (!ORIGIN_RAW) return new Response('Missing ORIGIN_BASE', { status: 500 });
 
-  // أزل أي /hls في نهاية ORIGIN_BASE حتى لا يحدث /hls/hls
+  // امنع تكرار /hls في النهاية
   const ORIGIN_BASE = ORIGIN_RAW.replace(/\/hls$/i, '');
-  const UPSTREAM_PREFIX = ((env.UPSTREAM_PREFIX ?? '/hls') || '').replace(/\/+$/, '') || '';
+  const UPSTREAM_PREFIX = (env.UPSTREAM_PREFIX ?? '/hls');
 
   const sub = '/' + (params?.path || '');
-  const url = new URL(request.url);
-  const qs = url.search || '';
-
+  const qs = new URL(request.url).search || '';
   const upstreamPath = `${UPSTREAM_PREFIX}${sub}`.replace(/\/{2,}/g, '/');
   const upstreamUrl = `${ORIGIN_BASE}${upstreamPath}${qs}`;
 
-  // مرّر بعض الرؤوس المهمة فقط
   const fwd = {};
   for (const h of ['range', 'user-agent', 'accept', 'accept-encoding', 'origin', 'referer']) {
     const v = request.headers.get(h);
@@ -23,7 +20,7 @@ export async function onRequest({ request, env, params }) {
   let up;
   try {
     up = await fetch(upstreamUrl, { headers: fwd });
-  } catch (e) {
+  } catch (_) {
     return new Response('Upstream fetch failed', { status: 502, headers: { 'Access-Control-Allow-Origin': '*' } });
   }
 
@@ -40,24 +37,39 @@ export async function onRequest({ request, env, params }) {
     return new Response(body, { status: up.status, headers: hdr });
   }
 
+  // لو ليس مانيفست: مرره كما هو
   if (!isM3U8) {
     return new Response(up.body, { status: 200, headers: hdr });
   }
 
+  // تحقق من أن المحتوى بالفعل m3u8
   const text = await up.text();
+  const firstNonEmpty = (text.split('\n').find(l => l.trim().length > 0) || '').trim();
+  if (!firstNonEmpty.startsWith('#EXTM3U')) {
+    hdr.set('Content-Type', 'text/plain; charset=utf-8');
+    return new Response(
+      `Bad upstream for m3u8 (no #EXTM3U). First line: ${firstNonEmpty.slice(0,120)}`,
+      { status: 502, headers: hdr }
+    );
+  }
+
+  // اعد كتابة روابط المانيفست لتمر عبر نفس العامل /hls
   const publicBase = `/hls${sub}${qs}`;
   const parent = publicBase.replace(/\/[^/]*$/, '/');
 
-  // أعد كتابة روابط المانيفست ليعود كل شيء عبر نفس الـWorker
   const rewritten = text.split('\n').map((line) => {
     const t = line.trim();
     if (!t || t.startsWith('#')) return line;
     if (/^https?:\/\//i.test(t)) {
       try {
         const u = new URL(t);
-        return `/hls${u.pathname}${u.search || ''}`;
+        const p = (u.pathname || '') + (u.search || '');
+        // منع /hls/hls
+        if (p.startsWith('/hls/')) return p;
+        return `/hls${p}`;
       } catch { return line; }
     }
+    // relative path
     return parent + t;
   }).join('\n');
 

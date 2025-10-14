@@ -117,21 +117,30 @@ let HlsLib=null; async function ensureHls(){ if(HlsLib) return HlsLib; await loa
 </script>
 
 <script>
-// ————— إعداد المصادر —————
-const SOURCES = {
-  main:  '/hls/live/playlist.m3u8',
-  cam1:  '/hls/lastone/playlist.m3u8',
-  cam2:  '/hls/live2/playlist.m3u8',
-  cam3:  '/hls/live3/playlist.m3u8',
-  cam4:  '/hls/live4/playlist.m3u8',
-  cam5:  '/hls/live5/playlist.m3u8',
-  cam6:  '/hls/live6/playlist.m3u8',
-  cam7:  '/hls/live7/playlist.m3u8',
-};
-const order = [
-  ['main','MAIN'],['cam1','CAM1'],['cam2','CAM2'],['cam3','CAM3'],
-  ['cam4','CAM4'],['cam5','CAM5'],['cam6','DRONE'],['cam7','SINEFLEX'],
-];
+    /* ============ إعدادات ثابتة ============ */
+    const API_BASE = 'https://steps-livekit-api.onrender.com';   // ← عدّل إذا لزم
+    const HLS_BASE = 'https://hls-proxy.it-f2c.workers.dev';
+
+    const SOURCES = {
+      main: `${HLS_BASE}/hls/live/playlist.m3u8`,
+      cam1: `${HLS_BASE}/hls/lastone/playlist.m3u8`,
+      cam2: `${HLS_BASE}/hls/live2/playlist.m3u8`,
+      cam3: `${HLS_BASE}/hls/live3/playlist.m3u8`,
+      cam4: `${HLS_BASE}/hls/live4/playlist.m3u8`,
+      cam5: `${HLS_BASE}/hls/live5/playlist.m3u8`,
+      cam6: `${HLS_BASE}/hls/live6/playlist.m3u8`,
+      cam7: `${HLS_BASE}/hls/live7/playlist.m3u8`,
+    };
+    const CHANNELS = [
+      {id:'main',label:'MAIN',src:SOURCES.main},
+      {id:'cam1',label:'Cam1',src:SOURCES.cam1},
+      {id:'cam2',label:'Cam2',src:SOURCES.cam2},
+      {id:'cam3',label:'Cam3',src:SOURCES.cam3},
+      {id:'cam4',label:'Cam4',src:SOURCES.cam4},
+      {id:'cam5',label:'Cam5',src:SOURCES.cam5},
+      {id:'cam6',label:'DRONE',src:SOURCES.cam6},
+      {id:'cam7',label:'SINEFLEX',src:SOURCES.cam7},
+    ];
 
 const $ = (s,p=document)=>p.querySelector(s);
 const list = $('#list'), wrap=$('#wrap'), activeBox=$('#active'), mainBox=$('#main');

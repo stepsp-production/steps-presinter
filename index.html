@@ -95,13 +95,6 @@
     #scrub::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid #0006;cursor:pointer}
     #timeLabel{color:#fff;font-size:12px;min-width:108px;text-align:center}
 
-    /* بوابة البدء */
-    #gatePlay{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2))}
-    #gatePlay.hidden{display:none}
-    .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
-    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bد);color:#fff;background:#111a;font-size:18px}
-    #startBtn{min-width:160px}
-
     /* القائمة الجانبية */
     #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s}
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
@@ -398,15 +391,12 @@
       }, 2500);
     }
     ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true}));
-    // أثناء المرور على البانلات، لا تُخفي
     [document.getElementById('streamPanel'), document.getElementById('utilityControls'), document.getElementById('globalControls'), document.getElementById('lkPanel')].forEach(el=>{
       el.addEventListener('mouseenter',()=>{clearTimeout(uiTimer); root.classList.remove('ui-hidden'); root.classList.add('ui-visible');});
       el.addEventListener('mouseleave',showUI);
     });
-    // تشغيل أولي لمؤثر الإخفاء بعد ثانية
     setTimeout(showUI,1000);
 
-    // تفاعل المعاينة
     document.getElementById('mainPreview').addEventListener('click',()=>{
       if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull);
     });

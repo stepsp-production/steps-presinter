@@ -1,402 +1,221 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Steps MultiCam + LiveKit</title>
-
-  <!-- أيقونة بسيطة -->
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Steps MultiCam</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E"/>
 
   <style>
-    :root{
-      --btn:#00c19a; --btn-h:#00ad8a; --btn-a:#009e7e; --txt:#fff;
-      --panel:#0b0b0fe6; --bd:#ffffff26;
-    }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
-
-    #app{position:relative;width:100vw;height:100vh}
-
-    /* الفيديوهات */
-    .videoFrame{position:absolute;inset:0;background:#000;overflow:hidden}
-    .videoFrame video{width:100%;height:100%;object-fit:contain;background:#000}
-
-    /* المعاينة المصغّرة */
-    #mainPreview{position:absolute;top:14px;right:16px;width:22%;height:24%;z-index:6;border:1px solid #fff2;border-radius:16px;cursor:pointer;transition:transform .18s,box-shadow .18s,width .18s,height .18s,top .18s,right .18s,left .18s}
-    #mainPreview:hover{box-shadow:0 10px 30px #0008}
-
-    /* وضع الانقسام */
-    .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
-    .split #activeCam{left:0;right:auto;width:50%;height:100%}
-
-    /* ملء/قص */
-    .mode-contain video{object-fit:contain}
-    .mode-zoom video{object-fit:contain;transform:scale(1.08)}
-    .mode-cover video{object-fit:cover}
-
-    /* تكبير المعاينة */
-    .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
-    .main-full #activeCam{display:none}
-
-    /* تلميح */
-    .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
-    .split .hint,.main-full .hint{display:none}
-
-    /* أشرطة وأزرار */
-    #utility,#toolbar{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
-    #utility{top:10px;right:10px}
-    #toolbar{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel);padding:10px;border-radius:14px;border:1px solid var(--bd);align-items:center;min-width:320px}
-
-    button{appearance:none;border:0;outline:0;cursor:pointer;background:var(--btn);color:var(--txt);padding:10px 12px;font-size:12px;font-weight:800;border-radius:12px;letter-spacing:.2px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 18px #000a,0 0 0 0 rgba(0,193,154,.28);transition:transform .12s,box-shadow .12s,background .12s}
-    button:hover{background:var(--btn-h);box-shadow:0 12px 26px #000c,0 0 0 6px rgba(0,193,154,.28)}
-    button:active{background:var(--btn-a);transform:translateY(1px)}
-
-    #scrub{-webkit-appearance:none;appearance:none;width:280px;height:6px;border-radius:999px;background:#ffffff30;outline:none;margin:0 8px}
-    #scrub::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid #0006;cursor:pointer}
-    #timeLabel{color:#fff;font-size:12px;min-width:108px;text-align:center}
-
-    /* بوابة التشغيل */
-    #gate{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2))}
+    :root{--btn:#00c19a;--btnh:#00ad8a;--btna:#009e7e;--panel:#0b0b0fe6;--bd:#ffffff26}
+    *{box-sizing:border-box} html,body{height:100%} body{margin:0;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    #wrap{position:relative;height:100vh;width:100vw;overflow:hidden}
+    #active,#main{position:absolute;inset:0}
+    video{width:100%;height:100%;object-fit:contain;background:#000}
+    #main{inset:auto 16px 16px auto;width:22%;height:24%;border:1px solid #fff2;border-radius:16px;z-index:5;cursor:pointer;transition:all .18s}
+    .split #main{inset:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
+    .split #active{left:0;width:50%}
+    #panel{position:absolute;top:10px;left:10px;width:220px;z-index:6}
+    .item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #ffffff33;border-radius:12px;background:#0006;margin:6px 0;cursor:pointer}
+    .dot{width:8px;height:8px;border-radius:50%;background:#666}
+    .ok{background:#0f0}
+    #bar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:8px 10px;z-index:7}
+    button{appearance:none;border:0;border-radius:10px;background:var(--btn);color:#fff;font-weight:700;padding:9px 12px;cursor:pointer}
+    button:hover{background:var(--btnh)} button:active{background:var(--btna)}
+    #gate{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2));z-index:8}
     #gate.hidden{display:none}
-    .card{background:var(--panel);border:1px solid var(--bd);border-radius:16px;padding:16px 18px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
-    .card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--bd);color:#fff;background:#111a;font-size:18px}
-
-    /* قائمة الكاميرات */
-    #panel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;}
-    #panel .title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
-    #list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
-    .item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer;background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20); backdrop-filter: blur(2px); transition:background .12s, border-color .12s}
-    .item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
-    .item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
-    .name{font-weight:800; font-size:12px; letter-spacing:.4px}
-    .dot{width:8px;height:8px;border-radius:999px;background:#777}
-    .dot.ok{background:#00d27a}
-    .bad{color:#ff7b7b;font-size:12px}
-
-    /* إخفاء تلقائي */
-    .ui-hidden #panel,.ui-hidden #utility,.ui-hidden #toolbar{opacity:0; pointer-events:none}
-    .ui-visible #panel,.ui-visible #utility,.ui-visible #toolbar{opacity:1; pointer-events:auto}
-
-    @media (orientation: portrait){
-      #mainPreview{top:12px;right:14px;width:58vw;height:36vh;border-radius:16px}
-      #toolbar{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);left:50%;transform:translateX(-50%);width:min(94vw,560px);padding:8px 10px;z-index:9999}
-      #scrub{width:clamp(140px,56vw,360px)}
-      #panel{width:190px}
-    }
+    .card{display:flex;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:16px 20px}
+    #hint{position:absolute;top:12px;right:16px;background:#000a;border:1px solid #fff2;border-radius:999px;padding:6px 10px;z-index:6}
+    .ui-hidden #panel, .ui-hidden #bar, .ui-hidden #hint{opacity:0;pointer-events:none;transition:opacity .25s}
   </style>
 </head>
 <body>
-  <div id="app" class="ui-visible mode-contain">
-    <!-- القائمة -->
-    <aside id="panel" aria-label="مصادر البث">
-      <div class="title">SOURCES</div>
-      <ul id="list"></ul>
-      <div id="errBox" class="bad" style="margin:8px 6px 0;display:none"></div>
-    </aside>
+<div id="wrap" class="ui-hidden">
+  <aside id="panel" aria-label="مصادر">
+    <div style="font-weight:900;letter-spacing:.8px;margin-bottom:8px">SOURCES</div>
+    <div id="list"></div>
+  </aside>
 
-    <div id="activeCam" class="videoFrame" aria-label="الكاميرا النشطة"></div>
-    <div id="mainPreview" class="videoFrame" title="انقر للتكبير/التصغير" aria-label="المعاينة الرئيسية"></div>
-    <div class="hint">انقر على المعاينة للتكبير • F لإخفاء/إظهار الواجهة</div>
+  <div id="active"></div>
+  <div id="main" title="انقر للتكبير/التصغير"></div>
 
-    <!-- أدوات -->
-    <div id="utility" role="toolbar" aria-label="أدوات">
-      <button id="btnSplit">تقسيم</button>
-      <button id="btnMode">ملء</button>
-      <button id="btnSound">🔊/🔇</button>
-      <button id="btnJoin">انضمام (LiveKit)</button>
-    </div>
+  <div id="hint">انقر على المعاينة للتكبير • F لإظهار/إخفاء الواجهة</div>
 
-    <!-- الشريط -->
-    <div id="toolbar" role="group" aria-label="تحكم موحّد">
-      <button id="gBack">⏪ 5s</button>
-      <button id="gPlay">⏯</button>
-      <button id="gFwd">5s ⏩</button>
-      <input id="scrub" type="range" min="0" max="0" value="0" step="0.01" aria-label="شريط التقدم">
-      <div id="timeLabel">00:00 / 00:00</div>
-    </div>
-
-    <!-- بوابة البدء -->
-    <div id="gate" role="dialog" aria-modal="true" aria-label="بدء التشغيل">
-      <div class="card">
-        <div class="icon">▶</div>
-        <div>
-          <div style="color:#fff;font-weight:800;margin-bottom:6px">ابدأ التشغيل والمزامنة</div>
-          <div style="font-size:12px;color:#eaeaf0b3">سيظهر شريط التقديم/التأخير بعد الضغط على تشغيل</div>
-        </div>
-        <button id="btnStart" style="min-width:160px">تشغيل/بدء المزامنة</button>
-      </div>
-    </div>
+  <div id="bar">
+    <button id="btnStart">تشغيل</button>
+    <button id="btnSplit">تقسيم</button>
+    <button id="btnMute">🔊/🔇</button>
   </div>
 
-  <!-- الإعدادات العامة على الصفحة -->
-  <script>
-    // استخدم Functions على نطاقك: /hls/... و /vendor/...
-    window.HLS_BASE = '';                       // ← يعني /hls على نفس النطاق
-    window.TOKEN_BASE = 'https://steps-livekit-api.onrender.com'; // API لتوليد التوكن
-    window.LK_URL = 'wss://presinter-stream-gjthpz2z.livekit.cloud'; // LiveKit
-    window.DEFAULT_ROOM = 'studio-3';           // اسم الغرفة الافتراضي
-  </script>
+  <div id="gate" role="dialog" aria-modal="true">
+    <div class="card">
+      <div class="icon" style="width:34px;height:34px;display:grid;place-items:center;border-radius:50%;border:1px solid #fff2;background:#111a">▶</div>
+      <div>
+        <div style="font-weight:800;margin-bottom:4px">اضغط تشغيل للسماح بالتشغيل</div>
+        <div style="font-size:12px;color:#eaeaf0b3">سيبدأ تحميل المصادر عند الضغط</div>
+      </div>
+      <button id="go">تشغيل/بدء</button>
+    </div>
+  </div>
+</div>
 
-  <script>
-    // أدوات تحميل سكربتات من نطاقك (يمشي مع CSP)
-    function loadScript(src){
-      return new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = src; s.async = true;
-        s.onload = () => res(true);
-        s.onerror = (e) => rej(new Error('failed to load ' + src));
-        document.head.appendChild(s);
-      });
+<script>
+  // حمّل hls.js من نطاقك (يلتزم الـ CSP)
+  function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.async=true;s.onload=res;s.onerror=()=>rej(new Error('load fail '+src));document.head.appendChild(s);});}
+  let HlsLib=null;
+  async function ensureHls(){ if(HlsLib) return HlsLib; await loadScript('/vendor/hls.min.js'); if(window.Hls){HlsLib=window.Hls; return HlsLib;} throw new Error('HLS lib not loaded'); }
+</script>
+
+<script>
+  // مصادر HLS عبر البروكسي /hls/*
+  const SOURCES = {
+    main:  '/hls/live/playlist.m3u8',
+    cam1:  '/hls/lastone/playlist.m3u8',
+    cam2:  '/hls/live2/playlist.m3u8',
+    cam3:  '/hls/live3/playlist.m3u8',
+    cam4:  '/hls/live4/playlist.m3u8',
+    cam5:  '/hls/live5/playlist.m3u8',
+    cam6:  '/hls/live6/playlist.m3u8',
+    cam7:  '/hls/live7/playlist.m3u8',
+  };
+  const order = [
+    ['main','MAIN'],
+    ['cam1','CAM1'],
+    ['cam2','CAM2'],
+    ['cam3','CAM3'],
+    ['cam4','CAM4'],
+    ['cam5','CAM5'],
+    ['cam6','DRONE'],
+    ['cam7','SINEFLEX'],
+  ];
+
+  const $ = (s,p=document)=>p.querySelector(s);
+  const list = $('#list');
+  const wrap = $('#wrap');
+  const activeBox = $('#active');
+  const mainBox = $('#main');
+  const btnSplit = $('#btnSplit');
+  const btnStart = $('#btnStart');
+  const btnMute = $('#btnMute');
+  const gate = $('#gate'); const go = $('#go');
+
+  let vActive=null, vMain=null, hlsA=null, hlsM=null, isMuted=false, split=false, uiTimer=null;
+
+  function makeVideo(parent){
+    const v = document.createElement('video');
+    v.playsInline = true; v.autoplay = false; v.controls = false; v.muted = isMuted;
+    parent.innerHTML=''; parent.appendChild(v);
+    return v;
+  }
+
+  async function attachM3U8(video, url){
+    const Hls = await ensureHls();
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url; await video.play().catch(()=>{});
+    } else {
+      const h = new Hls({ enableWorker:true, lowLatencyMode:true, backBufferLength:60, maxBufferLength:10 });
+      h.on(Hls.Events.ERROR, (_,data)=>{ console.warn('[HLS] ERROR', data); });
+      h.loadSource(url); h.attachMedia(video);
+      await video.play().catch(()=>{});
+      return h;
     }
-    async function ensureHls(){
-      if (window.Hls) return window.Hls;
-      await loadScript('/vendor/hls.min.js');
-      if (!window.Hls) throw new Error('Hls.js did not load');
-      return window.Hls;
-    }
-    async function ensureLiveKit(){
-      if (window.LiveKit) return window.LiveKit;
-      await loadScript('/vendor/livekit-client.umd.min.js');
-      if (!window.LiveKit) throw new Error('LiveKit library did not load');
-      return window.LiveKit;
-    }
-  </script>
+  }
 
-  <script>
-    // بناء روابط المصادر
-    (function(){
-      const BASE = (window.HLS_BASE || '').replace(/\/$/,''); // '' => على نفس الدومين
-      const P = (p)=> BASE ? (BASE + p) : p;
+  async function startPlayback(){
+    vActive = makeVideo(activeBox);
+    vMain   = makeVideo(mainBox);
 
-      window.sources = {
-        main:  P('/hls/live/playlist.m3u8'),
-        cam1:  P('/hls/lastone/playlist.m3u8'),
-        cam2:  P('/hls/live2/playlist.m3u8'),
-        cam3:  P('/hls/live3/playlist.m3u8'),
-        cam4:  P('/hls/live4/playlist.m3u8'),
-        cam5:  P('/hls/live5/playlist.m3u8'),
-        cam6:  P('/hls/live6/playlist.m3u8'),
-        cam7:  P('/hls/live7/playlist.m3u8'),
-      };
-
-      window.channelMap = [
-        {id:'main',label:'MAIN', src:sources.main},
-        {id:'cam1',label:'Cam1', src:sources.cam1},
-        {id:'cam2',label:'Cam2', src:sources.cam2},
-        {id:'cam3',label:'Cam3', src:sources.cam3},
-        {id:'cam4',label:'Cam4', src:sources.cam4},
-        {id:'cam5',label:'Cam5', src:sources.cam5},
-        {id:'cam6',label:'Cam6', src:sources.cam6},
-        {id:'cam7',label:'Cam7', src:sources.cam7},
-      ];
-    })();
-  </script>
-
-  <script>
-    // عناصر DOM
-    const app = document.getElementById('app');
-    const list = document.getElementById('list');
-    const errBox = document.getElementById('errBox');
-    const mainPreview = document.getElementById('mainPreview');
-    const activeCam = document.getElementById('activeCam');
-    const btnSplit = document.getElementById('btnSplit');
-    const btnMode = document.getElementById('btnMode');
-    const btnSound = document.getElementById('btnSound');
-    const btnJoin = document.getElementById('btnJoin');
-    const btnStart = document.getElementById('btnStart');
-    const toolbar = document.getElementById('toolbar');
-    const gPlay = document.getElementById('gPlay');
-    const gBack = document.getElementById('gBack');
-    const gFwd  = document.getElementById('gFwd');
-    const scrub = document.getElementById('scrub');
-    const timeLabel = document.getElementById('timeLabel');
-    const gate = document.getElementById('gate');
-
-    let uiTimer = null;
-    let modeIdx = 0; // 0:contain,1:zoom,2:cover
-    let mainId = 'main';
-    let activeId = 'cam1';
-    let mainVideo = null;
-    let activeVideo = null;
-    let hlsMain = null;
-    let hlsActive = null;
-    let muted = true;
-
-    // إخفاء الواجهة تلقائيًا
-    function showUI(){
-      app.classList.add('ui-visible'); app.classList.remove('ui-hidden');
-      if (uiTimer) clearTimeout(uiTimer);
-      uiTimer = setTimeout(()=>{ app.classList.add('ui-hidden'); app.classList.remove('ui-visible'); }, 2000);
-    }
-    ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev, showUI));
-    showUI();
-
-    // إنشاء عنصر فيديو مع Hls.js
-    async function attachM3U8(container, url){
-      const Hls = await ensureHls();
-      container.innerHTML = '';
-      const v = document.createElement('video');
-      v.playsInline = true; v.controls = false; v.autoplay = false; v.muted = muted;
-      container.appendChild(v);
-
-      if (Hls.isSupported()){
-        const h = new Hls({lowLatencyMode:false, enableWorker:true});
-        h.on(Hls.Events.ERROR, (_, data) => {
-          console.warn('[HLS] ERROR', data);
-          errBox.style.display='block';
-          errBox.textContent = `HLS ERROR: ${data?.details || data?.type || 'unknown'}`;
-        });
-        h.loadSource(url);
-        h.attachMedia(v);
-        return {video:v, hls:h};
-      } else if (v.canPlayType('application/vnd.apple.mpegurl')) {
-        v.src = url;
-        return {video:v, hls:null};
-      } else {
-        throw new Error('HLS not supported in this browser');
-      }
-    }
-
-    function setMode(i){
-      modeIdx = i % 3;
-      app.classList.toggle('mode-contain', modeIdx===0);
-      app.classList.toggle('mode-zoom',    modeIdx===1);
-      app.classList.toggle('mode-cover',   modeIdx===2);
-    }
-
-    // قائمة المصادر + النقاط الخضراء
-    function buildList(){
-      list.innerHTML = '';
-      window.channelMap.forEach(ch=>{
-        const li = document.createElement('li');
-        li.className = 'item' + (ch.id===activeId?' active':'');
-        li.dataset.id = ch.id;
-        li.innerHTML = `<span class="dot" id="dot-${ch.id}"></span><span class="name">${ch.label}</span>`;
-        li.addEventListener('click',()=>switchActive(ch.id));
-        list.appendChild(li);
-      });
-    }
-
-    async function pingStreams(){
-      const now = Date.now();
-      await Promise.all(window.channelMap.map(async (ch)=>{
-        const dot = document.getElementById('dot-'+ch.id);
-        if (!dot) return;
-        try{
-          // بعض الأورجِن لا يدعم HEAD → استخدم GET Range صغيرة
-          const url = ch.src + (ch.src.includes('?')?'&':'?') + 'ping=' + now;
-          const r = await fetch(url, { method:'GET', headers:{ 'Range':'bytes=0-1','Cache-Control':'no-cache' }});
-          dot.classList.toggle('ok', r.ok || r.status===206);
-        }catch(_){
-          dot.classList.remove('ok');
-        }
-      }));
-    }
-
-    async function switchActive(id){
-      activeId = id;
-      document.querySelectorAll('.item').forEach(el=>el.classList.toggle('active', el.dataset.id===id));
-      const src = window.channelMap.find(x=>x.id===id)?.src;
-      if (!src) return;
-      const {video, hls} = await attachM3U8(activeCam, src);
-      if (hlsActive) hlsActive.destroy(); hlsActive = hls; activeVideo = video;
-      try{ await video.play().catch(()=>{});}catch{}
-    }
-
-    async function switchMain(id){
-      mainId = id;
-      const src = window.channelMap.find(x=>x.id===id)?.src;
-      if (!src) return;
-      const {video, hls} = await attachM3U8(mainPreview, src);
-      if (hlsMain) hlsMain.destroy(); hlsMain = hls; mainVideo = video;
-      try{ await video.play().catch(()=>{});}catch{}
-    }
-
-    // بدء التشغيل
-    async function startPlayback(){
-      errBox.style.display='none';
-      buildList();
-      await pingStreams();
-
-      await switchActive(activeId);
-      await switchMain(mainId);
-
-      // تشغيل صامت أولاً ثم يقدر المستخدم يفعّل الصوت
-      try{ await mainVideo.play(); }catch{}
-      try{ await activeVideo.play(); }catch{}
-
+    try{
+      hlsM = await attachM3U8(vMain,   SOURCES.main);
+      hlsA = await attachM3U8(vActive, SOURCES.cam1);
+      $('#btnStart').disabled = true;
       gate.classList.add('hidden');
+    }catch(e){
+      alert('تعذّر البدء:\n'+(e?.message||e));
     }
+  }
 
-    // أزرار
-    btnStart.addEventListener('click', startPlayback);
-    mainPreview.addEventListener('click', ()=>{
-      if (app.classList.contains('main-full')) app.classList.remove('main-full');
-      else app.classList.add('main-full');
-    });
-    btnSplit.addEventListener('click', ()=> app.classList.toggle('split'));
-    btnMode.addEventListener('click', ()=> setMode(modeIdx+1));
-    btnSound.addEventListener('click', ()=>{
-      muted = !muted;
-      [mainVideo, activeVideo].forEach(v=>{ if(v) v.muted = muted; });
-    });
-
-    // مؤقت فحص المصادر (كل 8 ثوانٍ)
-    setInterval(pingStreams, 8000);
-
-    // إخفاء/إظهار الواجهة بـ F
-    document.addEventListener('keydown', (e)=>{
-      if (e.key.toLowerCase()==='f'){
-        if (app.classList.contains('ui-hidden')) showUI(); else { app.classList.add('ui-hidden'); app.classList.remove('ui-visible'); }
-      }
-    });
-
-    // LiveKit: انضمام
-    async function fetchTokenSmart(room, identity){
-      const base = (window.TOKEN_BASE || '').replace(/\/$/,'');
-      const tries = [
-        `${base}/api/token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`,
-        `${base}/token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`,
-        `${base}/api/rtoken?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`,
-        `${base}/api/get-token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`
-      ];
-      let lastErr = '';
-      for (const u of tries){
-        try{
-          const r = await fetch(u, {cache:'no-store'});
-          if (!r.ok) { lastErr = `HTTP ${r.status}`; continue; }
-          const data = await r.json().catch(()=>null);
-          const token = data?.token || data?.accessToken || data?.jwt || data;
-          if (token && typeof token === 'string') return token;
-          lastErr = 'bad json';
-        }catch(e){ lastErr = e?.message || 'fetch error'; }
-      }
-      throw new Error(`لا يمكن الحصول على التوكن. آخر خطأ: ${lastErr}`);
+  function renderList(){
+    list.innerHTML='';
+    for (const [id,label] of order){
+      const row = document.createElement('div');
+      row.className='item'; row.dataset.id=id;
+      row.innerHTML = `<div class="dot" id="dot-${id}"></div><div style="font-weight:800">${label}</div>`;
+      row.onclick = ()=> switchActive(id);
+      list.appendChild(row);
     }
+  }
 
-    async function joinLiveKit(){
-      try{
-        const LiveKit = await ensureLiveKit();
-        const roomName = window.DEFAULT_ROOM || 'studio-1';
-        const identity = `guest-${Math.random().toString(36).slice(2,7)}`;
-        const token = await fetchTokenSmart(roomName, identity);
+  async function switchActive(id){
+    if (!vActive) return;
+    const url = SOURCES[id] || SOURCES.cam1;
+    if (hlsA && hlsA.destroy) { hlsA.destroy(); hlsA=null; }
+    vActive.pause(); vActive.removeAttribute('src'); vActive.load();
+    hlsA = await attachM3U8(vActive, url);
+  }
 
-        // اتصل
-        const room = await LiveKit.connect(window.LK_URL, token);
-        console.log('LiveKit connected', room.state);
+  async function switchMain(id='main'){
+    if (!vMain) return;
+    const url = SOURCES[id] || SOURCES.main;
+    if (hlsM && hlsM.destroy) { hlsM.destroy(); hlsM=null; }
+    vMain.pause(); vMain.removeAttribute('src'); vMain.load();
+    hlsM = await attachM3U8(vMain, url);
+  }
 
-        btnJoin.textContent = '✅ متصل';
-        btnJoin.disabled = true;
-      }catch(err){
-        console.error('joinLiveKit error', err);
-        alert('تعذّر الانضمام: ' + (err?.message || err));
-      }
+  function pingStreams(){
+    for (const [id] of order){
+      const u = SOURCES[id] + (SOURCES[id].includes('?')?'&':'?') + 'ping=' + Date.now();
+      fetch(u, { method:'HEAD' }).then(r=>{
+        const ok = r.ok;
+        const dot = $('#dot-'+id);
+        if (dot) dot.classList.toggle('ok', ok);
+      }).catch(()=>{
+        const dot = $('#dot-'+id);
+        if (dot) dot.classList.remove('ok');
+      });
     }
-    btnJoin.addEventListener('click', joinLiveKit);
+  }
 
-    // الوضع الابتدائي
-    setMode(0);
-  </script>
+  // UI
+  btnSplit.onclick = ()=>{ split=!split; wrap.classList.toggle('split', split); };
+  btnMute.onclick  = ()=>{
+    isMuted=!isMuted;
+    if (vMain) vMain.muted=isMuted;
+    if (vActive) vActive.muted=isMuted;
+  };
+  $('#go').onclick = startPlayback;
+  btnStart.onclick = startPlayback;
+
+  mainBox.addEventListener('click', ()=>{
+    split = !split; wrap.classList.toggle('split', split);
+  });
+
+  // إظهار/إخفاء الواجهة تلقائيًا
+  function showUI(){ wrap.classList.remove('ui-hidden'); clearTimeout(uiTimer); uiTimer=setTimeout(()=>wrap.classList.add('ui-hidden'), 1500); }
+  document.addEventListener('mousemove', showUI, { passive:true });
+  document.addEventListener('keydown', (e)=>{ if(e.key.toLowerCase()==='f') showUI(); });
+
+  renderList();
+  pingStreams(); setInterval(pingStreams, 8000);
+</script>
+
+<!-- LiveKit - التحميل من نطاقك (عند الحاجة) -->
+<script>
+  async function ensureLiveKit(){
+    if (window.LiveKit) return window.LiveKit;
+    await loadScript('/vendor/livekit-client.umd.min.js');
+    if (!window.LiveKit) throw new Error('LiveKit library did not load');
+    return window.LiveKit;
+  }
+  async function joinLiveKit(){
+    try{
+      const LK = await ensureLiveKit();
+      alert('LiveKit جاهز للاتصال، أكمل منطق التوكن لاحقًا.');
+    }catch(e){
+      console.error('joinLiveKit error', e);
+      alert('تعذّر الانضمام: '+(e?.message||e));
+    }
+  }
+</script>
 </body>
 </html>

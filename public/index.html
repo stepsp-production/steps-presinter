@@ -116,22 +116,7 @@ function loadScript(src){return new Promise((res,rej)=>{const s=document.createE
 let HlsLib=null; async function ensureHls(){ if(HlsLib) return HlsLib; await loadScript('/vendor/hls.min.js'); if(window.Hls){HlsLib=window.Hls; return HlsLib;} throw new Error('HLS lib not loaded'); }
 </script>
 
-<script>
-// ————— إعداد المصادر —————
-const SOURCES = {
-  main:  '/hls/live/playlist.m3u8',
-  cam1:  '/hls/lastone/playlist.m3u8',
-  cam2:  '/hls/live2/playlist.m3u8',
-  cam3:  '/hls/live3/playlist.m3u8',
-  cam4:  '/hls/live4/playlist.m3u8',
-  cam5:  '/hls/live5/playlist.m3u8',
-  cam6:  '/hls/live6/playlist.m3u8',
-  cam7:  '/hls/live7/playlist.m3u8',
-};
-const order = [
-  ['main','MAIN'],['cam1','CAM1'],['cam2','CAM2'],['cam3','CAM3'],
-  ['cam4','CAM4'],['cam5','CAM5'],['cam6','DRONE'],['cam7','SINEFLEX'],
-];
+c
 
 const $ = (s,p=document)=>p.querySelector(s);
 const list = $('#list'), wrap=$('#wrap'), activeBox=$('#active'), mainBox=$('#main');

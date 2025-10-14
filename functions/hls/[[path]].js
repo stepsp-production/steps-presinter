@@ -1,133 +1,139 @@
+// Cloudflare Pages Function: HLS proxy & rewriter with diagnostics
+// Route: /hls/*  (أمثلة: /hls/live/playlist.m3u8 , /hls/live/segment123.ts)
 export async function onRequest({ request, env, params }) {
-  const PUBLIC_BASE = '/hls';
+  const url = new URL(request.url);
+  const diag = url.searchParams.has('diag');   // ?diag=1 => JSON تشخيصي
+  const ping = url.searchParams.has('ping');   // HEAD/GET سريع لصحة المصدر
 
   const ORIGIN_BASE = (env.ORIGIN_BASE || '').replace(/\/+$/, '');
-  const UP_PREFIX   = (env.UPSTREAM_PREFIX || '/hls').replace(/\/+$/, '');
+  const UPSTREAM_PREFIX = (env.UPSTREAM_PREFIX || '/hls').replace(/\/+$/, '');
 
-  if (!ORIGIN_BASE) return new Response('Missing ORIGIN_BASE', { status: 500 });
-
-  const reqUrl = new URL(request.url);
-  const sub = '/' + (params?.path || '');
-  const qs  = reqUrl.search || '';
-  const isDiag = reqUrl.searchParams.has('diag');
-  const isPing = reqUrl.searchParams.has('ping');
-
-  const upstreamPath = `${UP_PREFIX}${sub}`.replace(/\/{2,}/g, '/');
-  const upstreamUrl  = `${ORIGIN_BASE}${upstreamPath}${qs}`;
-
-  // حوّل HEAD إلى GET + Range بسيط حتى لا يفشل الـ ping
-  const method = request.method === 'HEAD' ? 'GET' : request.method;
-
-  const fwd = new Headers();
-  for (const h of [
-    'range','user-agent','accept','accept-encoding',
-    'origin','referer','cache-control','pragma'
-  ]) {
-    const v = request.headers.get(h);
-    if (v) fwd.set(h, v);
-  }
-  if (request.method === 'HEAD' && !fwd.has('range')) {
-    fwd.set('range','bytes=0-1');
-  }
-
-  let up;
-  try {
-    up = await fetch(upstreamUrl, { method, headers: fwd, redirect: 'follow' });
-  } catch (e) {
-    if (isDiag) {
-      return new Response(JSON.stringify({ ok:false, stage:'fetch', error: e?.message || String(e), upstreamUrl }), {
-        status: 502,
-        headers: { 'Content-Type':'application/json; charset=utf-8', 'Access-Control-Allow-Origin':'*' }
-      });
-    }
-    return new Response('Upstream fetch error', { status: 502 });
-  }
-
-  // تشخيص سريع
-  if (isDiag) {
-    const head = {};
-    up.headers.forEach((v,k)=> head[k]=v);
-    return new Response(JSON.stringify({
-      ok: up.ok, status: up.status, statusText: up.statusText,
-      upstreamUrl,
-      contentType: up.headers.get('content-type') || null,
-      headers: head
-    }, null, 2), {
-      status: up.ok ? 200 : up.status,
-      headers: { 'Content-Type':'application/json; charset=utf-8', 'Access-Control-Allow-Origin':'*' }
+  // يجب ضبط ORIGIN_BASE من إعدادات Pages > Functions > Environment Variables
+  if (!ORIGIN_BASE) {
+    const msg = { error: 'Missing ORIGIN_BASE env', hint: 'Set ORIGIN_BASE to your tunnel/base URL', got: env.ORIGIN_BASE || null };
+    return new Response(diag ? JSON.stringify(msg) : 'Missing ORIGIN_BASE', {
+      status: 500,
+      headers: { 'Content-Type': diag ? 'application/json' : 'text/plain', 'Access-Control-Allow-Origin': '*' }
     });
   }
 
-  const hdr = new Headers(up.headers);
+  // path المطلوب (مثل "live/playlist.m3u8")
+  const raw = (params?.path || '').replace(/^\/+/, '');
+  const sub = '/' + raw;
+
+  // ابنِ مسار upstream: لا تضاعف /hls
+  // إذا كان raw يبدأ بـ "hls/" فنزيله لأننا أصلاً داخل /hls/*
+  const trimmed = raw.startsWith('hls/') ? raw.slice(4) : raw;
+  const upstreamPath = `${UPSTREAM_PREFIX}/${trimmed}`.replace(/\/{2,}/g, '/');
+  const upstreamUrl = `${ORIGIN_BASE}${upstreamPath}${url.search ? url.search.replace(/[?&](diag|ping)(=[^&]*)?/g, '') : ''}`;
+
+  // نمرر بعض الهيدرز فقط
+  const fwd = {};
+  for (const h of ['range', 'user-agent', 'accept', 'accept-encoding', 'origin', 'referer']) {
+    const v = request.headers.get(h);
+    if (v) fwd[h] = v;
+  }
+
+  // لو طلب ping فقط، نعمل HEAD إن أمكن
+  if (ping && request.method === 'GET') {
+    try {
+      const head = await fetch(upstreamUrl, { method: 'HEAD', headers: fwd, redirect: 'follow' });
+      return new Response(null, {
+        status: head.ok ? 204 : head.status,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'X-Upstream-URL': upstreamUrl,
+          'Cache-Control': 'no-store'
+        }
+      });
+    } catch (e) {
+      return new Response(null, {
+        status: 502,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'X-Upstream-URL': upstreamUrl,
+          'X-Error': (e?.message || String(e)).slice(0, 200),
+          'Cache-Control': 'no-store'
+        }
+      });
+    }
+  }
+
+  let up;
+  let errMsg = null;
+  try {
+    up = await fetch(upstreamUrl, { headers: fwd, redirect: 'follow' });
+  } catch (e) {
+    errMsg = e?.message || String(e);
+  }
+
+  const hdr = new Headers(up?.headers || {});
   hdr.set('Access-Control-Allow-Origin', '*');
-  hdr.set('Vary', 'Origin');
   hdr.delete('transfer-encoding');
+  hdr.set('Cache-Control', 'no-store');
   hdr.set('X-Upstream-URL', upstreamUrl);
 
-  const isM3U8 = /\.m3u8(\?.*)?$/i.test(sub);
-
-  // لطلبات الـ HEAD نعيد حالة نجاح بدون جسم
-  if (request.method === 'HEAD') {
-    const status = up.ok || up.status === 206 ? 200 : up.status;
-    return new Response(null, { status, headers: hdr });
+  // تشخيص مفيد عند الفشل
+  if (!up || !up.ok) {
+    if (diag) {
+      const body = up ? (await up.text().catch(()=>'')) : '';
+      const info = {
+        ok: false,
+        upstreamUrl,
+        status: up ? up.status : 502,
+        headers: Object.fromEntries(hdr),
+        fetchError: errMsg,
+        bodySnippet: (body || '').slice(0, 500)
+      };
+      return new Response(JSON.stringify(info, null, 2), {
+        status: up ? up.status : 502,
+        headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+    return new Response('Upstream error', { status: up ? up.status : 502, headers: hdr });
   }
 
-  if (!up.ok) {
-    const body = await up.text().catch(()=> '');
-    hdr.set('Cache-Control','no-store');
-    return new Response(body || 'Upstream not ok', { status: up.status, headers: hdr });
-  }
-
-  // اسمح للـ ping بتجاوز فحص EXTM3U
-  if (isPing && isM3U8) {
-    hdr.set('Cache-Control','no-store');
-    hdr.set('Content-Type', up.headers.get('content-type') || 'application/vnd.apple.mpegurl');
-    return new Response(up.body, { status: 200, headers: hdr });
-  }
+  // مرّر غير m3u8 كما هو (ts, mp4, key, jpg…)
+  const pathLower = trimmed.toLowerCase();
+  const isM3U8 = pathLower.endsWith('.m3u8');
 
   if (!isM3U8) {
-    hdr.set('Cache-Control','no-store');
+    // بعض السيرفرات تُرجع 302 للـ ts — الرد هنا سيكون follow بالفعل
     return new Response(up.body, { status: 200, headers: hdr });
   }
 
-  const raw = await up.text();
-  const hasExt = /^\uFEFF?\s*#EXTM3U/.test(raw);
-  const ct = (up.headers.get('content-type') || '').toLowerCase();
-
-  if (!hasExt) {
-    hdr.set('Cache-Control', 'no-store');
-    hdr.set('Content-Type', 'text/plain; charset=utf-8');
-    hdr.set('X-Upstream-CT', ct);
-    return new Response('Bad upstream manifest (not M3U8).', { status: 502, headers: hdr });
-  }
-
-  // إعادة كتابة روابط المانيفست إلى /hls لنفس الأصل العام
-  function toPublicPath(p) {
-    if (!p) return p;
-    if (/^https?:\/\//i.test(p)) {
-      try {
-        const u = new URL(p);
-        let path = u.pathname || '/';
-        if (UP_PREFIX && path.startsWith(UP_PREFIX)) {
-          path = path.slice(UP_PREFIX.length) || '/';
-        }
-        return `${PUBLIC_BASE}${path}${u.search || ''}`;
-      } catch { return p; }
+  // playlist: أعد كتابة الروابط لتشير لـ /hls على نفس نطاقك
+  const text = await up.text();
+  // تأكد أن أول سطر #EXTM3U وإلا سيعتبرها hls.js "no EXTM3U delimiter"
+  if (!/^#EXTM3U/m.test(text)) {
+    if (diag) {
+      return new Response(JSON.stringify({ ok:false, reason:'not-m3u8', upstreamUrl, snippet: text.slice(0, 300) }, null, 2), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' }
+      });
     }
-    const parent = `${PUBLIC_BASE}${sub}`.replace(/\/[^/]*$/, '/');
-    return parent + p;
+    return new Response('Bad playlist', { status: 502, headers: hdr });
   }
 
-  const rewritten = raw
-    .split('\n')
-    .map(line => {
-      const t = line.trim();
-      if (!t || t.startsWith('#')) return line;
-      return toPublicPath(t);
-    })
-    .join('\n');
+  const publicBase = `/hls/${trimmed}${url.search || ''}`.replace(/\/{2,}/g, '/');
+  const parent = publicBase.replace(/\/[^/]*$/, '/');
 
-  hdr.set('Cache-Control','no-store');
-  hdr.set('Content-Type','application/vnd.apple.mpegurl');
+  const rewritten = text.split('\n').map((line) => {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) return line;
+    // مطلق http(s)
+    if (/^https?:\/\//i.test(t)) {
+      try {
+        const u = new URL(t);
+        return `/hls${u.pathname}${u.search || ''}`.replace(/\/{2,}/g, '/');
+      } catch {
+        return line;
+      }
+    }
+    // نسبي: اجعله تحت parent
+    return (parent + t).replace(/\/{2,}/g, '/');
+  }).join('\n');
+
+  hdr.set('Content-Type', 'application/vnd.apple.mpegurl');
   return new Response(rewritten, { status: 200, headers: hdr });
 }

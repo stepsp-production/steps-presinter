@@ -14,18 +14,18 @@ export async function onRequest({ params }) {
   const list = libs[name] || [];
   for (const u of list) {
     try {
-      const r = await fetch(u, { cf:{cacheEverything:true, cacheTtl:86400}, redirect:'follow' });
+      const r = await fetch(u, { cf:{ cacheEverything:true, cacheTtl:86400 }, redirect:'follow' });
       if (r.ok) {
         return new Response(r.body, {
-          headers:{
-            'Content-Type':'application/javascript; charset=utf-8',
-            'Cache-Control':'public, max-age=86400, s-maxage=604800, immutable',
-            'Access-Control-Allow-Origin':'*',
-            'X-Source-URL': u,
+          headers: {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'public, max-age=86400, s-maxage=604800, immutable',
+            'Access-Control-Allow-Origin': '*',
+            'X-Source-URL': u
           }
         });
       }
     } catch {}
   }
-  return new Response('Not found', { status: 404, headers:{'Access-Control-Allow-Origin':'*'} });
+  return new Response('Not found', { status: 404, headers: { 'Access-Control-Allow-Origin': '*' } });
 }

@@ -20,9 +20,7 @@ export async function onRequest({ params }) {
 
   for (const url of cdns) {
     try {
-      const r = await fetch(url, {
-        cf: { cacheEverything: true, cacheTtl: 86400 }
-      });
+      const r = await fetch(url, { cf: { cacheEverything: true, cacheTtl: 86400 } });
       if (r.ok) {
         const body = await r.arrayBuffer();
         return new Response(body, {

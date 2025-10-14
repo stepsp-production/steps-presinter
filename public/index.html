@@ -148,7 +148,7 @@
         <div class="icon" style="width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px">▶</div>
         <div>
           <div style="color:#fff;font-weight:800;margin-bottom:6px">ابدأ التشغيل والمزامنة</div>
-          <div style="font-size:12px;color:#eaeaf0b3">سيظهر شريط التقديم/التأخير بعد الضغط على تشغيل</div>
+          <div id="gateMsg" style="font-size:12px;color:#eaeaf0b3">سيظهر شريط التقديم/التأخير بعد الضغط على تشغيل</div>
         </div>
         <button id="startBtn" aria-label="ابدأ التشغيل الآن" style="min-width:160px">تشغيل/بدء المزامنة</button>
       </div>
@@ -189,7 +189,7 @@
 
   <!-- إعداد قواعد التشغيل -->
   <script>
-    // اختيار HLS_BASE
+    // اختيار HLS_BASE من query ?hls= أو من window.HLS_BASE أو الافتراضي /hls
     (function pickHlsBase(){
       const u=new URL(location.href);
       const q=u.searchParams.get('hls');
@@ -207,7 +207,6 @@
       const BASE = String(window.HLS_BASE||'').replace(/\/+$/,'');
       function build(p){
         let path = '/' + String(p||'').replace(/^\/+/, '');
-        // لو الـBASE ينتهي بـ /hls امنع /hls/hls
         if (/\/hls$/i.test(BASE)) path = path.replace(/^\/hls(\/|$)/i, '/');
         return BASE + path;
       }
@@ -241,6 +240,7 @@
     const mainContainer= document.getElementById('mainPreview');
     const camContainer = document.getElementById('activeCam');
     const gatePlay     = document.getElementById('gatePlay');
+    const gateMsgEl    = document.getElementById('gateMsg');
     const startBtn     = document.getElementById('startBtn');
     const btnSplit     = document.getElementById('btnSplit');
     const btnFill      = document.getElementById('btnFill');
@@ -253,7 +253,7 @@
     const timeLabel    = document.getElementById('timeLabel');
     const streamList   = document.getElementById('streamList');
 
-    // حالة عامة (إعلان مرّة واحدة فقط)
+    // حالة عامة
     const SAFETY_EDGE = 0.80;
     let started=false, splitMode=0, isMainFull=false;
     let mainPlayer=null, activePlayer=null, currentCam='cam2';
@@ -282,7 +282,10 @@
       });
       video.__hls=hls; hls.attachMedia(video);
       hls.on(Hls.Events.MEDIA_ATTACHED,()=>hls.loadSource(url));
-      hls.on(Hls.Events.ERROR,(_,err)=>{console.warn('[HLS] ERROR',err);});
+      hls.on(Hls.Events.ERROR,(_,err)=>{
+        console.warn('[HLS] ERROR',err);
+        gateMsgEl.textContent = 'فشل تحميل الفيديو: تحقق من HLS_BASE وORIGIN_BASE وCORS.';
+      });
       return hls;
     }
 
@@ -414,7 +417,11 @@
       rootEl.classList.toggle('cover-one',isMainFull);
     });
 
-    // تشغيل ومؤقّت
+    // تشغيل مع تحقّق — لا نخفي البوابة إلا عند النجاح
+    function once(el, ev){return new Promise(r=>el.addEventListener(ev, r, {once:true}));}
+    async function tryPlay(v){
+      try{ const p=v.play(); if(p) await p; return true; }catch{ return false; }
+    }
     function startTimeTicker(){
       if(ticker) return;
       ticker=setInterval(()=>{
@@ -425,16 +432,29 @@
         scrub.value=ct||0; timeLabel.textContent=`${fmt(ct)} / ${fmt(d||0)}`;
       },250);
     }
-
     async function startPlayback(){
-      if(started) return; started=true;
-      gatePlay.classList.add('hidden'); globalControls.classList.remove('hidden');
+      if(started) return;
+      gateMsgEl.textContent='جارِ التحميل…';
 
-      try{ await mainPlayer.play(); }catch(_){}
-      try{ await activePlayer.play(); }catch(_){}
-      setTimeout(async()=>{
+      // جرّب التشغيل
+      const ok1 = await tryPlay(mainPlayer);
+      const ok2 = await tryPlay(activePlayer||mainPlayer);
+
+      if(!(ok1||ok2)){
+        gateMsgEl.textContent='لم ينجح التشغيل. تأكد من السماح بالصوت/الفيديو أو تحقق من المصدر (502 يعني أن ORIGIN_BASE لا يعمل).';
+        return; // لا نخفي البوابة
+      }
+
+      // تأخير بسيط للوصول لحافة البث
+      setTimeout(()=>{
         const r=mainPlayer.seekable; if(r&&r.length){ mainPlayer.currentTime=Math.max(r.start(0), r.end(r.length-1)-SAFETY_EDGE); }
       },300);
+
+      // نجاح — أخفِ البوابة وابدأ المؤقّت
+      started=true;
+      gatePlay.classList.add('hidden');
+      globalControls.classList.remove('hidden');
+      gateMsgEl.textContent='';
 
       startTimeTicker();
     }

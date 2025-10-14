@@ -29,6 +29,7 @@
     }
   </script>
 
+  <!-- أيقونة -->
   <link rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
@@ -143,13 +144,13 @@
     <div class="hint">حرّك الماوس لإظهار الواجهة • انقر المعاينة للتكبير • S تقسيم • F ملء</div>
 
     <div id="gatePlay" role="dialog" aria-modal="true" aria-label="بدء التشغيل">
-      <div class="gate-card">
-        <div class="icon">▶</div>
+      <div class="gate-card" style="background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)">
+        <div class="icon" style="width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px">▶</div>
         <div>
           <div style="color:#fff;font-weight:800;margin-bottom:6px">ابدأ التشغيل والمزامنة</div>
           <div style="font-size:12px;color:#eaeaf0b3">سيظهر شريط التقديم/التأخير بعد الضغط على تشغيل</div>
         </div>
-        <button id="startBtn" aria-label="ابدأ التشغيل الآن">تشغيل/بدء المزامنة</button>
+        <button id="startBtn" aria-label="ابدأ التشغيل الآن" style="min-width:160px">تشغيل/بدء المزامنة</button>
       </div>
     </div>
 
@@ -188,22 +189,25 @@
 
   <!-- إعداد قواعد التشغيل -->
   <script>
+    // اختيار HLS_BASE
     (function pickHlsBase(){
       const u=new URL(location.href);
       const q=u.searchParams.get('hls');
       const base = (q || window.HLS_BASE || '/hls').replace(/\/+$/,'');
       window.HLS_BASE = base;
     })();
+    // إعداد LiveKit
     window.LIVEKIT_WS  = window.LIVEKIT_WS  || 'wss://presinter-stream-gjthpz2z.livekit.cloud';
     window.TOKEN_BASE  = window.TOKEN_BASE  || 'https://steps-livekit-api.onrender.com';
   </script>
 
-  <!-- مصادر البث (منع /hls/hls) -->
+  <!-- مصادر البث -->
   <script>
     (function(){
       const BASE = String(window.HLS_BASE||'').replace(/\/+$/,'');
       function build(p){
         let path = '/' + String(p||'').replace(/^\/+/, '');
+        // لو الـBASE ينتهي بـ /hls امنع /hls/hls
         if (/\/hls$/i.test(BASE)) path = path.replace(/^\/hls(\/|$)/i, '/');
         return BASE + path;
       }
@@ -230,37 +234,41 @@
     })();
   </script>
 
-  <!-- تشغيل HLS + واجهة -->
+  <!-- تشغيل HLS + الواجهة -->
   <script>
-    const SAFETY_EDGE   = 0.80;
-    const root = document.getElementById('playerContainer');
-    const mainContainer=document.getElementById('mainPreview');
-    const camContainer=document.getElementById('activeCam');
-    const gatePlay=document.getElementById('gatePlay');
-    const startBtn=document.getElementById('startBtn');
-    const btnSplit=document.getElementById('btnSplit');
-    const btnFill=document.getElementById('btnFill');
-    const btnSound=document.getElementById('btnSound');
-    const globalControls=document.getElementById('globalControls');
-    const gPlay=document.getElementById('gPlay');
-    const gBack=document.getElementById('gBack');
-    const gFwd=document.getElementById('gFwd');
-    const scrub=document.getElementById('scrub');
-    const timeLabel=document.getElementById('timeLabel');
-    const streamList=document.getElementById('streamList');
+    // عناصر DOM
+    const rootEl       = document.getElementById('playerContainer');
+    const mainContainer= document.getElementById('mainPreview');
+    const camContainer = document.getElementById('activeCam');
+    const gatePlay     = document.getElementById('gatePlay');
+    const startBtn     = document.getElementById('startBtn');
+    const btnSplit     = document.getElementById('btnSplit');
+    const btnFill      = document.getElementById('btnFill');
+    const btnSound     = document.getElementById('btnSound');
+    const globalControls = document.getElementById('globalControls');
+    const gPlay        = document.getElementById('gPlay');
+    const gBack        = document.getElementById('gBack');
+    const gFwd         = document.getElementById('gFwd');
+    const scrub        = document.getElementById('scrub');
+    const timeLabel    = document.getElementById('timeLabel');
+    const streamList   = document.getElementById('streamList');
 
+    // حالة عامة (إعلان مرّة واحدة فقط)
+    const SAFETY_EDGE = 0.80;
     let started=false, splitMode=0, isMainFull=false;
-    let mainPlayer, activePlayer, currentCam='cam2';
+    let mainPlayer=null, activePlayer=null, currentCam='cam2';
     let ticker=null, isScrubbing=false;
     const playersCache=new Map();
 
+    // أدوات وقت/بفر
     const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
     function getSeekableRange(v){try{const r=v.seekable;if(!r||!r.length)return null;return{start:r.start(r.length-1),end:r.end(r.length-1)};}catch(e){return null;}}
-    function capLiveEdge(v,t){const m=getSeekableRange(v); if(!m) return t; return Math.min(t, m.end - SAFETY_EDGE);}
+    function capLiveEdge(v,t){const r=getSeekableRange(v); if(r) return Math.min(t, r.end - SAFETY_EDGE); return t;}
     function containsTime(v,t){try{const b=v.buffered;for(let i=0;i<b.length;i++){if(t>=b.start(i)&&t<=b.end(i)) return {start:b.start(i),end:b.end(i)};} }catch(e){} return null;}
     function nearestBufferedTime(v,t){try{const b=v.buffered;let best=null,dm=1e9;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);const cand=(t<s)?s:(t>e?e:t);const d=Math.abs(cand-t);if(d<dm){dm=d;best=cand;}} return best;}catch(e){return null;}}
     function snapIntoBuffer(v,t){t=capLiveEdge(v,t); const r=containsTime(v,t); if(r) return t; const near=nearestBufferedTime(v,t); return typeof near==='number'?near:t;}
 
+    // HLS attach
     async function attachHlsWithAvc(video,url){
       const Hls = await ensureHls();
       const hls=new Hls({
@@ -278,6 +286,7 @@
       return hls;
     }
 
+    // إنشاء فيديو
     function createVideoElement(url){
       const wrap=document.createElement('div'); wrap.className='layer'; wrap.style.cssText='position:absolute;inset:0;opacity:0';
       const v=document.createElement('video');
@@ -294,8 +303,13 @@
       return {wrap, video:v};
     }
 
+    // تركيب
     function mountTo(container, node){container.appendChild(node);}
-    function initMain(){const {wrap,video}=createVideoElement(window.sources.main); mountTo(mainContainer,wrap); wrap.style.opacity='1'; mainPlayer=video;}
+    function initMain(){
+      const {wrap,video}=createVideoElement(window.sources.main);
+      mountTo(mainContainer,wrap); wrap.style.opacity='1';
+      mainPlayer=video;
+    }
     function getOrCreateCam(id){
       let ent=playersCache.get(id);
       if(ent) return ent;
@@ -307,6 +321,7 @@
       return rec;
     }
 
+    // قائمة المصادر + نقاط الحالة
     function buildStreamList(){
       streamList.innerHTML='';
       (window.channelMap||[]).forEach(ch=>{
@@ -324,8 +339,11 @@
       });
       pingStreams(); setInterval(pingStreams, 8000);
     }
-    function markActiveList(){document.querySelectorAll('.stream-item').forEach(el=>{el.classList.toggle('active',el.dataset.cam===currentCam);});}
-
+    function markActiveList(){
+      document.querySelectorAll('.stream-item').forEach(el=>{
+        el.classList.toggle('active',el.dataset.cam===currentCam);
+      });
+    }
     async function pingStreams(){
       const items=[...document.querySelectorAll('.stream-item')];
       await Promise.all(items.map(async li=>{
@@ -343,21 +361,18 @@
       }));
     }
 
-    let isMainFull=false, splitMode=0;
-    let mainPlayer, activePlayer, currentCam='cam2';
-    const rootEl=document.getElementById('playerContainer');
-
+    // تهيئة أولية
     function initOnce(){
       initMain();
       const first=getOrCreateCam(currentCam);
       first.wrap.style.opacity='1';
       activePlayer=first.video;
-
       buildStreamList();
       markActiveList();
     }
     initOnce();
 
+    // تبديل الكاميرا بسلاسة
     async function setActiveCamSmooth(id){
       if(!window.sources[id] || id===currentCam) return;
       currentCam=id; markActiveList();
@@ -375,7 +390,7 @@
       setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
     }
 
-    // إخفاء تلقائي
+    // إخفاء تلقائي عند الخمول
     let uiTimer=null;
     function showUI(){
       rootEl.classList.remove('ui-hidden'); rootEl.classList.add('ui-visible');
@@ -391,21 +406,15 @@
     });
     setTimeout(showUI,1000);
 
+    // تصغير/تكبير المعاينة الرئيسية
     document.getElementById('mainPreview').addEventListener('click',()=>{
-      if(splitMode!==0) return; isMainFull=!isMainFull; rootEl.classList.toggle('main-full',isMainFull); rootEl.classList.toggle('cover-one',isMainFull);
+      if(splitMode!==0) return;
+      isMainFull=!isMainFull;
+      rootEl.classList.toggle('main-full',isMainFull);
+      rootEl.classList.toggle('cover-one',isMainFull);
     });
 
-    // تشغيل
-    const gatePlay=document.getElementById('gatePlay');
-    const startBtn=document.getElementById('startBtn');
-    const globalControls=document.getElementById('globalControls');
-    const gPlay=document.getElementById('gPlay');
-    const gBack=document.getElementById('gBack');
-    const gFwd=document.getElementById('gFwd');
-    const scrub=document.getElementById('scrub');
-    const timeLabel=document.getElementById('timeLabel');
-    let started=false, ticker=null, isScrubbing=false;
-
+    // تشغيل ومؤقّت
     function startTimeTicker(){
       if(ticker) return;
       ticker=setInterval(()=>{
@@ -413,13 +422,9 @@
         let d=0, ct=mainPlayer.currentTime||0;
         const r=mainPlayer.seekable; if(r&&r.length) d=r.end(r.length-1);
         if(d&&isFinite(d)) scrub.max=d;
-        const mm=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
-        scrub.value=ct||0; timeLabel.textContent=`${mm(ct)} / ${mm(d||0)}`;
+        scrub.value=ct||0; timeLabel.textContent=`${fmt(ct)} / ${fmt(d||0)}`;
       },250);
     }
-
-    function capLiveEdge(v,t){const r=v.seekable; if(r&&r.length){const end=r.end(r.length-1); return Math.min(t, end - 0.8);} return t;}
-    function snapIntoBuffer(v,t){try{const b=v.buffered;for(let i=0;i<b.length;i++){if(t>=b.start(i)&&t<=b.end(i)) return t;}const e=b.length?b.end(b.length-1):t;return e;}catch(e){return t;}}
 
     async function startPlayback(){
       if(started) return; started=true;
@@ -428,24 +433,35 @@
       try{ await mainPlayer.play(); }catch(_){}
       try{ await activePlayer.play(); }catch(_){}
       setTimeout(async()=>{
-        const r=mainPlayer.seekable; if(r&&r.length){ mainPlayer.currentTime=Math.max(r.start(0), r.end(r.length-1)-0.8); }
+        const r=mainPlayer.seekable; if(r&&r.length){ mainPlayer.currentTime=Math.max(r.start(0), r.end(r.length-1)-SAFETY_EDGE); }
       },300);
 
       startTimeTicker();
     }
 
-    const gSeek=(ofs)=>{ if(!started || !mainPlayer) return; const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs); mainPlayer.currentTime=t; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,t); };
+    // أزرار التحكّم العام
+    const gSeek=(ofs)=>{
+      if(!started || !mainPlayer) return;
+      const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs);
+      mainPlayer.currentTime=t;
+      if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,t);
+    };
     gBack.addEventListener('click',()=>gSeek(-5));
     gFwd .addEventListener('click',()=>gSeek( 5));
-    gPlay.addEventListener('click',async()=>{ if(!started) return; if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}} else mainPlayer.pause(); });
-
+    gPlay.addEventListener('click',async()=>{
+      if(!started) return;
+      if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}} else mainPlayer.pause();
+    });
     scrub.addEventListener('input',()=>{ if(started) isScrubbing=true; });
-    scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(mainPlayer, parseFloat(scrub.value)||0); mainPlayer.currentTime=nt; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,nt); isScrubbing=false; });
+    scrub.addEventListener('change',()=>{
+      if(!started) return;
+      const nt=capLiveEdge(mainPlayer, parseFloat(scrub.value)||0);
+      mainPlayer.currentTime=nt;
+      if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,nt);
+      isScrubbing=false;
+    });
 
-    const btnSplit=document.getElementById('btnSplit');
-    const btnFill=document.getElementById('btnFill');
-    const btnSound=document.getElementById('btnSound');
-
+    // أزرار اليوتيليتي
     btnSplit.addEventListener('click',()=>{
       splitMode=(splitMode+1)%4;
       rootEl.classList.toggle('split', splitMode!==0);
@@ -456,7 +472,9 @@
     });
     btnFill.addEventListener('click',()=>{
       if(splitMode===0){
-        isMainFull=!isMainFull; rootEl.classList.toggle('main-full',isMainFull); rootEl.classList.toggle('cover-one',isMainFull);
+        isMainFull=!isMainFull;
+        rootEl.classList.toggle('main-full',isMainFull);
+        rootEl.classList.toggle('cover-one',isMainFull);
       }else{
         splitMode = (splitMode===2)?3:2;
         rootEl.classList.remove('mode1','mode2','mode3');
@@ -466,6 +484,7 @@
     });
     btnSound.addEventListener('click',()=>{ if(!started || !mainPlayer) return; mainPlayer.muted=!mainPlayer.muted; if(!mainPlayer.muted) mainPlayer.play().catch(()=>{}); });
 
+    // بدء التشغيل
     startBtn.addEventListener('click',startPlayback);
     document.addEventListener('keydown',(e)=>{
       if(e.key===' '||e.key==='Enter'){ e.preventDefault(); startPlayback(); }
@@ -479,14 +498,14 @@
 
   <!-- LiveKit -->
   <script>
-    const lkJoinBtn = document.getElementById('lkJoin');
-    const lkLeaveBtn= document.getElementById('lkLeave');
-    const lkToggleCam=document.getElementById('lkToggleCam');
-    const lkToggleMic=document.getElementById('lkToggleMic');
-    const lkHint = document.getElementById('lkHint');
-    const lkGrid = document.getElementById('lkGrid');
-    const lkRoomSel=document.getElementById('lkRoom');
-    const lkNameInp=document.getElementById('lkName');
+    const lkJoinBtn   = document.getElementById('lkJoin');
+    const lkLeaveBtn  = document.getElementById('lkLeave');
+    const lkToggleCam = document.getElementById('lkToggleCam');
+    const lkToggleMic = document.getElementById('lkToggleMic');
+    const lkHint      = document.getElementById('lkHint');
+    const lkGrid      = document.getElementById('lkGrid');
+    const lkRoomSel   = document.getElementById('lkRoom');
+    const lkNameInp   = document.getElementById('lkName');
     let lkRoom=null;
 
     function setLkStatus(msg){ lkHint.textContent=msg; }

@@ -4,6 +4,10 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Steps MultiCam + LiveKit</title>
+
+   <!-- HLS.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E"/>
 
 <style>
@@ -116,32 +120,40 @@ function loadScript(src){return new Promise((res,rej)=>{const s=document.createE
 let HlsLib=null; async function ensureHls(){ if(HlsLib) return HlsLib; await loadScript('/vendor/hls.min.js'); if(window.Hls){HlsLib=window.Hls; return HlsLib;} throw new Error('HLS lib not loaded'); }
 </script>
 
+ <!-- توجيه عبر ورَكر -->
+  <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
+
+  <script>
+    /* الروابط والعناوين كما هي */
+    (function(){
+      const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
+      const build=(p)=>BASE?`${BASE}${p}`:p;
+
+      window.sources={
+        main:build("/hls/live/playlist.m3u8"),
+        cam1:build("/hls/lastone/playlist.m3u8"),
+        cam2:build("/hls/live2/playlist.m3u8"),
+        cam3:build("/hls/live3/playlist.m3u8"),
+        cam4:build("/hls/live4/playlist.m3u8"),
+        cam5:build("/hls/live5/playlist.m3u8"),
+        cam6:build("/hls/live6/playlist.m3u8"),
+        cam7:build("/hls/live7/playlist.m3u8")
+      };
+
+      window.channelMap=[
+        {id:'main',label:'MAIN',src:sources.main},
+        {id:'cam1',label:'Cam1',src:sources.cam1},
+        {id:'cam2',label:'Cam2',src:sources.cam2},
+        {id:'cam3',label:'Cam3',src:sources.cam3},
+        {id:'cam4',label:'Cam4',src:sources.cam4},
+        {id:'cam5',label:'Cam5',src:sources.cam5},
+        {id:'cam6',label:'Drone',src:sources.cam6},
+        {id:'cam7',label:'Sineflex',src:sources.cam7},
+      ];
+    })();
+  </script>
+
 <script>
-    /* ============ إعدادات ثابتة ============ */
-    const API_BASE = 'https://steps-livekit-api.onrender.com';   // ← عدّل إذا لزم
-    const HLS_BASE = 'https://hls-proxy.it-f2c.workers.dev';
-
-    const SOURCES = {
-      main: `${HLS_BASE}/hls/live/playlist.m3u8`,
-      cam1: `${HLS_BASE}/hls/lastone/playlist.m3u8`,
-      cam2: `${HLS_BASE}/hls/live2/playlist.m3u8`,
-      cam3: `${HLS_BASE}/hls/live3/playlist.m3u8`,
-      cam4: `${HLS_BASE}/hls/live4/playlist.m3u8`,
-      cam5: `${HLS_BASE}/hls/live5/playlist.m3u8`,
-      cam6: `${HLS_BASE}/hls/live6/playlist.m3u8`,
-      cam7: `${HLS_BASE}/hls/live7/playlist.m3u8`,
-    };
-    const CHANNELS = [
-      {id:'main',label:'MAIN',src:SOURCES.main},
-      {id:'cam1',label:'Cam1',src:SOURCES.cam1},
-      {id:'cam2',label:'Cam2',src:SOURCES.cam2},
-      {id:'cam3',label:'Cam3',src:SOURCES.cam3},
-      {id:'cam4',label:'Cam4',src:SOURCES.cam4},
-      {id:'cam5',label:'Cam5',src:SOURCES.cam5},
-      {id:'cam6',label:'DRONE',src:SOURCES.cam6},
-      {id:'cam7',label:'SINEFLEX',src:SOURCES.cam7},
-    ];
-
 const $ = (s,p=document)=>p.querySelector(s);
 const list = $('#list'), wrap=$('#wrap'), activeBox=$('#active'), mainBox=$('#main');
 const btnSplit=$('#btnSplit'), btnStart=$('#btnStart'), btnMute=$('#btnMute');

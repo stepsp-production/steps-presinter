@@ -1,1 +1,4 @@
-/* Content-Security-Policy: default-src 'self' blob: data:; script-src 'self' 'unsafe-inline'; connect-src 'self' https://steps-livekit-api.onrender.com https://*.livekit.cloud https://*.googlevideo.com https://player.vimeo.com https://*.vimeo.com; media-src * blob: data:; img-src * data: blob:; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; frame-src *; base-uri 'self'; frame-ancestors *; Referrer-Policy: no-referrer-when-downgrade; X-Content-Type-Options: nosniff; X-Frame-Options: SAMEORIGIN; Permissions-Policy: camera=(self), microphone=(self), fullscreen=(self) 
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' blob: https: data:; connect-src 'self' https://steps-livekit-api.onrender.com wss://*.livekit.cloud; frame-src https://www.youtube.com https://player.vimeo.com
+  Access-Control-Allow-Origin: *
+  Timing-Allow-Origin: *

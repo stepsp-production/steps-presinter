@@ -1,52 +1,74 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Steps MultiCam</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E"/>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Steps MultiCam + LiveKit</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E"/>
 
-  <style>
-    :root{--btn:#00c19a;--btnh:#00ad8a;--btna:#009e7e;--panel:#0b0b0fe6;--bd:#ffffff26}
-    *{box-sizing:border-box} html,body{height:100%} body{margin:0;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
-    #wrap{position:relative;height:100vh;width:100vw;overflow:hidden}
-    #active,#main{position:absolute;inset:0}
-    video{width:100%;height:100%;object-fit:contain;background:#000}
-    #main{inset:auto 16px 16px auto;width:22%;height:24%;border:1px solid #fff2;border-radius:16px;z-index:5;cursor:pointer;transition:all .18s}
-    .split #main{inset:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
-    .split #active{left:0;width:50%}
-    #panel{position:absolute;top:10px;left:10px;width:220px;z-index:6}
-    .item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #ffffff33;border-radius:12px;background:#0006;margin:6px 0;cursor:pointer}
-    .dot{width:8px;height:8px;border-radius:50%;background:#666}
-    .ok{background:#0f0}
-    #bar{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:8px 10px;z-index:7}
-    button{appearance:none;border:0;border-radius:10px;background:var(--btn);color:#fff;font-weight:700;padding:9px 12px;cursor:pointer}
-    button:hover{background:var(--btnh)} button:active{background:var(--btna)}
-    #gate{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2));z-index:8}
-    #gate.hidden{display:none}
-    .card{display:flex;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:16px 20px}
-    #hint{position:absolute;top:12px;right:16px;background:#000a;border:1px solid #fff2;border-radius:999px;padding:6px 10px;z-index:6}
-    .ui-hidden #panel, .ui-hidden #bar, .ui-hidden #hint{opacity:0;pointer-events:none;transition:opacity .25s}
-  </style>
+<style>
+:root{--btn:#00c19a;--btnh:#00ad8a;--btna:#009e7e;--panel:#0b0b0fe6;--bd:#ffffff26}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:#000;color:#fff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+#wrap{position:relative;height:100vh;width:100vw;overflow:hidden}
+#active,#main{position:absolute;inset:0}
+.video{width:100%;height:100%;object-fit:contain;background:#000}
+#main{inset:auto 16px 16px auto;width:22%;height:24%;border:1px solid #fff2;border-radius:16px;z-index:5;cursor:pointer;transition:all .18s}
+
+.split #main{inset:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
+.split #active{left:0;width:50%}
+
+#panel{position:absolute;top:10px;left:10px;width:230px;z-index:7}
+.title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px}
+.item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #ffffff33;border-radius:12px;background:#0006;margin:8px 0;cursor:pointer}
+.item:hover{background:#0009}
+.dot{width:8px;height:8px;border-radius:50%;background:#666}
+.ok{background:#0f0}
+
+#bar{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:8px 10px;z-index:7}
+button{appearance:none;border:0;border-radius:10px;background:var(--btn);color:#fff;font-weight:800;padding:9px 12px;cursor:pointer}
+button:hover{background:var(--btnh)} button:active{background:var(--btna)}
+
+#gate{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2));z-index:8}
+#gate.hidden{display:none}
+.card{display:flex;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:16px 20px}
+
+#hint{position:absolute;top:12px;right:16px;background:#000a;border:1px solid #fff2;border-radius:999px;padding:6px 10px;z-index:6}
+
+.ui-hidden #panel, .ui-hidden #bar, .ui-hidden #hint, .ui-hidden #rooms{opacity:0;pointer-events:none;transition:opacity .25s}
+
+/* لوحة الغرف */
+#rooms{position:absolute;right:12px;bottom:80px;z-index:7;background:var(--panel);border:1px solid var(--bd);border-radius:14px;padding:10px 12px;width:min(520px,92vw)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0}
+input,select{background:#0d0f12;color:#fff;border:1px solid #ffffff30;border-radius:10px;padding:8px 10px}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 8px;border-radius:999px;border:1px solid #ffffff30;background:#12151a;font-size:12px}
+.icon{font-size:14px}
+</style>
 </head>
 <body>
 <div id="wrap" class="ui-hidden">
+
+  <!-- قائمة المصادر -->
   <aside id="panel" aria-label="مصادر">
-    <div style="font-weight:900;letter-spacing:.8px;margin-bottom:8px">SOURCES</div>
+    <div class="title">SOURCES</div>
     <div id="list"></div>
   </aside>
 
+  <!-- الفيديوهات -->
   <div id="active"></div>
   <div id="main" title="انقر للتكبير/التصغير"></div>
 
-  <div id="hint">انقر على المعاينة للتكبير • F لإظهار/إخفاء الواجهة</div>
-
+  <!-- شريط تحكم -->
   <div id="bar">
-    <button id="btnStart">تشغيل</button>
+    <button id="btnStart">تشغيل/بدء المزامنة</button>
     <button id="btnSplit">تقسيم</button>
     <button id="btnMute">🔊/🔇</button>
   </div>
 
+  <!-- تلميح -->
+  <div id="hint">انقر على المعاينة للتكبير • F لإظهار/إخفاء الواجهة</div>
+
+  <!-- بوابة بدء التشغيل -->
   <div id="gate" role="dialog" aria-modal="true">
     <div class="card">
       <div class="icon" style="width:34px;height:34px;display:grid;place-items:center;border-radius:50%;border:1px solid #fff2;background:#111a">▶</div>
@@ -57,165 +79,246 @@
       <button id="go">تشغيل/بدء</button>
     </div>
   </div>
+
+  <!-- لوحة الغرف (LiveKit) -->
+  <section id="rooms" aria-label="الغرف (LiveKit)">
+    <div class="row">
+      <span class="badge"><span class="icon">🎬</span> اسم العرض</span>
+      <input id="showName" placeholder="اختياري" style="min-width:160px"/>
+      <span class="badge"><span class="icon">🏷️</span> الغرفة</span>
+      <select id="roomSel">
+        <option value="studio-1">studio-1</option>
+        <option value="studio-2">studio-2</option>
+        <option value="studio-3">studio-3</option>
+        <option value="studio-4">studio-4</option>
+        <option value="studio-5">studio-5</option>
+        <option value="studio-6">studio-6</option>
+        <option value="studio-7">studio-7</option>
+        <option value="studio-8">studio-8</option>
+        <option value="studio-9">studio-9</option>
+        <option value="studio-10">studio-10</option>
+      </select>
+      <button id="btnJoin">انضم للغرفة</button>
+      <button id="btnLeave" disabled>مغادرة</button>
+      <span id="lkState" class="badge"><span class="icon">🟢</span> LiveKit: مفصول</span>
+    </div>
+    <div class="row">
+      <button id="btnCam">الكاميرا</button>
+      <button id="btnMic">المايك</button>
+    </div>
+  </section>
+
 </div>
 
+<!-- تحميل hls من نطاقك -->
 <script>
-  // حمّل hls.js من نطاقك (يلتزم الـ CSP)
-  function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.async=true;s.onload=res;s.onerror=()=>rej(new Error('load fail '+src));document.head.appendChild(s);});}
-  let HlsLib=null;
-  async function ensureHls(){ if(HlsLib) return HlsLib; await loadScript('/vendor/hls.min.js'); if(window.Hls){HlsLib=window.Hls; return HlsLib;} throw new Error('HLS lib not loaded'); }
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.async=true;s.onload=res;s.onerror=()=>rej(new Error('load fail '+src));document.head.appendChild(s);});}
+let HlsLib=null; async function ensureHls(){ if(HlsLib) return HlsLib; await loadScript('/vendor/hls.min.js'); if(window.Hls){HlsLib=window.Hls; return HlsLib;} throw new Error('HLS lib not loaded'); }
 </script>
 
 <script>
-  // مصادر HLS عبر البروكسي /hls/*
-  const SOURCES = {
-    main:  '/hls/live/playlist.m3u8',
-    cam1:  '/hls/lastone/playlist.m3u8',
-    cam2:  '/hls/live2/playlist.m3u8',
-    cam3:  '/hls/live3/playlist.m3u8',
-    cam4:  '/hls/live4/playlist.m3u8',
-    cam5:  '/hls/live5/playlist.m3u8',
-    cam6:  '/hls/live6/playlist.m3u8',
-    cam7:  '/hls/live7/playlist.m3u8',
-  };
-  const order = [
-    ['main','MAIN'],
-    ['cam1','CAM1'],
-    ['cam2','CAM2'],
-    ['cam3','CAM3'],
-    ['cam4','CAM4'],
-    ['cam5','CAM5'],
-    ['cam6','DRONE'],
-    ['cam7','SINEFLEX'],
+// ————— إعداد المصادر —————
+const SOURCES = {
+  main:  '/hls/live/playlist.m3u8',
+  cam1:  '/hls/lastone/playlist.m3u8',
+  cam2:  '/hls/live2/playlist.m3u8',
+  cam3:  '/hls/live3/playlist.m3u8',
+  cam4:  '/hls/live4/playlist.m3u8',
+  cam5:  '/hls/live5/playlist.m3u8',
+  cam6:  '/hls/live6/playlist.m3u8',
+  cam7:  '/hls/live7/playlist.m3u8',
+};
+const order = [
+  ['main','MAIN'],['cam1','CAM1'],['cam2','CAM2'],['cam3','CAM3'],
+  ['cam4','CAM4'],['cam5','CAM5'],['cam6','DRONE'],['cam7','SINEFLEX'],
+];
+
+const $ = (s,p=document)=>p.querySelector(s);
+const list = $('#list'), wrap=$('#wrap'), activeBox=$('#active'), mainBox=$('#main');
+const btnSplit=$('#btnSplit'), btnStart=$('#btnStart'), btnMute=$('#btnMute');
+const gate=$('#gate'), go=$('#go');
+
+let vActive=null, vMain=null, hlsA=null, hlsM=null, isMuted=false, split=false, uiTimer=null;
+
+// إنشاء فيديو
+function makeVideo(parent){
+  const v=document.createElement('video');
+  v.className='video'; v.playsInline=true; v.autoplay=false; v.controls=false; v.muted=isMuted;
+  parent.innerHTML=''; parent.appendChild(v);
+  return v;
+}
+
+// ربط HLS
+async function attachM3U8(video,url){
+  const Hls=await ensureHls();
+  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src=url; await video.play().catch(()=>{});
+    return null;
+  } else {
+    const h=new Hls({ enableWorker:true, lowLatencyMode:true, backBufferLength:60, maxBufferLength:10 });
+    h.on(Hls.Events.ERROR,(_,data)=>{ console.warn('[HLS] ERROR', data); });
+    h.loadSource(url); h.attachMedia(video);
+    await video.play().catch(()=>{});
+    return h;
+  }
+}
+
+async function switchActive(id){
+  if (!vActive) return;
+  const url=SOURCES[id]||SOURCES.cam1;
+  if (hlsA && hlsA.destroy) { hlsA.destroy(); hlsA=null; }
+  vActive.pause(); vActive.removeAttribute('src'); vActive.load();
+  hlsA = await attachM3U8(vActive,url);
+}
+async function switchMain(id='main'){
+  if (!vMain) return;
+  const url=SOURCES[id]||SOURCES.main;
+  if (hlsM && hlsM.destroy) { hlsM.destroy(); hlsM=null; }
+  vMain.pause(); vMain.removeAttribute('src'); vMain.load();
+  hlsM = await attachM3U8(vMain,url);
+}
+
+// بناء القائمة + النقطة الخضراء
+function renderList(){
+  list.innerHTML='';
+  for (const [id,label] of order){
+    const row=document.createElement('div');
+    row.className='item'; row.dataset.id=id;
+    row.innerHTML=`<div class="dot" id="dot-${id}"></div><div style="font-weight:800">${label}</div>`;
+    row.onclick=()=> { if(id==='main') switchMain('main'); else switchActive(id); };
+    list.appendChild(row);
+  }
+}
+
+function pingStreams(){
+  for (const [id] of order){
+    const u=SOURCES[id]+(SOURCES[id].includes('?')?'&':'?')+'ping='+Date.now();
+    fetch(u,{method:'HEAD'}).then(r=>{
+      const dot=$('#dot-'+id); if(dot) dot.classList.toggle('ok', r.ok);
+    }).catch(()=>{ const dot=$('#dot-'+id); if(dot) dot.classList.remove('ok');});
+  }
+}
+
+// بدء التشغيل/المزامنة
+async function startPlayback(){
+  vActive=makeVideo(activeBox);
+  vMain=makeVideo(mainBox);
+  try{
+    await switchMain('main');
+    await switchActive('cam1');
+    btnStart.disabled=true; go.disabled=true; gate.classList.add('hidden');
+  }catch(e){ alert('تعذّر البدء: '+(e?.message||e)); }
+}
+
+// واجهة
+btnSplit.onclick=()=>{ split=!split; wrap.classList.toggle('split',split); };
+btnMute.onclick =()=>{ isMuted=!isMuted; if(vMain) vMain.muted=isMuted; if(vActive) vActive.muted=isMuted; };
+go.onclick=startPlayback; btnStart.onclick=startPlayback;
+mainBox.addEventListener('click',()=>{ split=!split; wrap.classList.toggle('split',split); });
+
+// إخفاء تلقائي
+function showUI(){ wrap.classList.remove('ui-hidden'); clearTimeout(uiTimer); uiTimer=setTimeout(()=>wrap.classList.add('ui-hidden'), 1600); }
+document.addEventListener('mousemove', showUI,{passive:true});
+document.addEventListener('keydown',(e)=>{ if(e.key.toLowerCase()==='f') showUI(); });
+
+// تهيئة
+renderList(); pingStreams(); setInterval(pingStreams,8000);
+</script>
+
+<!-- LiveKit -->
+<script>
+let LK=null, room=null, camOn=false, micOn=false;
+
+async function ensureLiveKit(){
+  if (LK) return LK;
+  await loadScript('/vendor/livekit-client.umd.min.js');
+  if (!window.LiveKit) throw new Error('LiveKit library did not load');
+  LK = window.LiveKit;
+  return LK;
+}
+
+// جرّب عدة مسارات للـ API
+async function fetchTokenSmart(room, identity){
+  const base = 'https://steps-livekit-api.onrender.com';
+  const paths = [
+    `/api/token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`,
+    `/token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`,
+    `/api/rtoken?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`,
+    `/api/get-token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`
   ];
-
-  const $ = (s,p=document)=>p.querySelector(s);
-  const list = $('#list');
-  const wrap = $('#wrap');
-  const activeBox = $('#active');
-  const mainBox = $('#main');
-  const btnSplit = $('#btnSplit');
-  const btnStart = $('#btnStart');
-  const btnMute = $('#btnMute');
-  const gate = $('#gate'); const go = $('#go');
-
-  let vActive=null, vMain=null, hlsA=null, hlsM=null, isMuted=false, split=false, uiTimer=null;
-
-  function makeVideo(parent){
-    const v = document.createElement('video');
-    v.playsInline = true; v.autoplay = false; v.controls = false; v.muted = isMuted;
-    parent.innerHTML=''; parent.appendChild(v);
-    return v;
-  }
-
-  async function attachM3U8(video, url){
-    const Hls = await ensureHls();
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = url; await video.play().catch(()=>{});
-    } else {
-      const h = new Hls({ enableWorker:true, lowLatencyMode:true, backBufferLength:60, maxBufferLength:10 });
-      h.on(Hls.Events.ERROR, (_,data)=>{ console.warn('[HLS] ERROR', data); });
-      h.loadSource(url); h.attachMedia(video);
-      await video.play().catch(()=>{});
-      return h;
-    }
-  }
-
-  async function startPlayback(){
-    vActive = makeVideo(activeBox);
-    vMain   = makeVideo(mainBox);
-
+  const tried=[];
+  for (const p of paths){
+    const url = base + p; tried.push(url);
     try{
-      hlsM = await attachM3U8(vMain,   SOURCES.main);
-      hlsA = await attachM3U8(vActive, SOURCES.cam1);
-      $('#btnStart').disabled = true;
-      gate.classList.add('hidden');
-    }catch(e){
-      alert('تعذّر البدء:\n'+(e?.message||e));
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const ct = (r.headers.get('content-type')||'').toLowerCase();
+      if (ct.includes('application/json')) {
+        const j=await r.json();
+        if (j?.token && j?.url) return { token:j.token, wsUrl:j.url };
+        if (j?.token && j?.wsUrl) return { token:j.token, wsUrl:j.wsUrl };
+        if (j?.token && j?.host)   return { token:j.token, wsUrl:`wss://${j.host}` };
+      } else {
+        const t = await r.text();
+        const m = t.match(/(ws[s]?:\/\/[^\s"']+)/i);
+        const token = t.replace(/[\r\n]/g,'').trim();
+        if (m && token.length>20) return { token, wsUrl:m[1] };
+      }
+    }catch{}
+  }
+  throw new Error('لا يمكن الحصول على التوكن. تمّت المحاولة على:\n'+tried.join('\n'));
+}
+
+function setLKState(txt){ $('#lkState').innerHTML = `<span class="icon">🟢</span> ${txt}`; }
+
+async function joinLiveKit(){
+  try{
+    const LiveKit = await ensureLiveKit();
+    const roomName = $('#roomSel').value || 'studio-1';
+    const identity = 'guest-' + Math.random().toString(36).slice(2,7);
+    const { token, wsUrl } = await fetchTokenSmart(roomName, identity);
+
+    room = new LiveKit.Room();
+    await room.connect(wsUrl, token, { autoSubscribe:true, stopLocalTrackOnUnpublish:true });
+
+    setLKState(`متصل: ${roomName}`);
+    $('#btnJoin').disabled = true; $('#btnLeave').disabled = false;
+
+  }catch(e){
+    console.error('joinLiveKit error', e);
+    alert(e?.message || String(e));
+  }
+}
+
+async function leaveLiveKit(){
+  try{
+    if (room){
+      await room.disconnect(); room = null;
+      setLKState('مفصول'); $('#btnJoin').disabled=false; $('#btnLeave').disabled=true;
     }
-  }
+  }catch{}
+}
 
-  function renderList(){
-    list.innerHTML='';
-    for (const [id,label] of order){
-      const row = document.createElement('div');
-      row.className='item'; row.dataset.id=id;
-      row.innerHTML = `<div class="dot" id="dot-${id}"></div><div style="font-weight:800">${label}</div>`;
-      row.onclick = ()=> switchActive(id);
-      list.appendChild(row);
-    }
-  }
+async function toggleCam(){
+  try{
+    await ensureLiveKit(); if (!room) return alert('انضم أولًا');
+    camOn = !camOn;
+    await room.localParticipant.setCameraEnabled(camOn);
+  }catch(e){ alert('تعذّر الكاميرا: '+(e?.message||e)); }
+}
 
-  async function switchActive(id){
-    if (!vActive) return;
-    const url = SOURCES[id] || SOURCES.cam1;
-    if (hlsA && hlsA.destroy) { hlsA.destroy(); hlsA=null; }
-    vActive.pause(); vActive.removeAttribute('src'); vActive.load();
-    hlsA = await attachM3U8(vActive, url);
-  }
+async function toggleMic(){
+  try{
+    await ensureLiveKit(); if (!room) return alert('انضم أولًا');
+    micOn = !micOn;
+    await room.localParticipant.setMicrophoneEnabled(micOn);
+  }catch(e){ alert('تعذّر المايك: '+(e?.message||e)); }
+}
 
-  async function switchMain(id='main'){
-    if (!vMain) return;
-    const url = SOURCES[id] || SOURCES.main;
-    if (hlsM && hlsM.destroy) { hlsM.destroy(); hlsM=null; }
-    vMain.pause(); vMain.removeAttribute('src'); vMain.load();
-    hlsM = await attachM3U8(vMain, url);
-  }
-
-  function pingStreams(){
-    for (const [id] of order){
-      const u = SOURCES[id] + (SOURCES[id].includes('?')?'&':'?') + 'ping=' + Date.now();
-      fetch(u, { method:'HEAD' }).then(r=>{
-        const ok = r.ok;
-        const dot = $('#dot-'+id);
-        if (dot) dot.classList.toggle('ok', ok);
-      }).catch(()=>{
-        const dot = $('#dot-'+id);
-        if (dot) dot.classList.remove('ok');
-      });
-    }
-  }
-
-  // UI
-  btnSplit.onclick = ()=>{ split=!split; wrap.classList.toggle('split', split); };
-  btnMute.onclick  = ()=>{
-    isMuted=!isMuted;
-    if (vMain) vMain.muted=isMuted;
-    if (vActive) vActive.muted=isMuted;
-  };
-  $('#go').onclick = startPlayback;
-  btnStart.onclick = startPlayback;
-
-  mainBox.addEventListener('click', ()=>{
-    split = !split; wrap.classList.toggle('split', split);
-  });
-
-  // إظهار/إخفاء الواجهة تلقائيًا
-  function showUI(){ wrap.classList.remove('ui-hidden'); clearTimeout(uiTimer); uiTimer=setTimeout(()=>wrap.classList.add('ui-hidden'), 1500); }
-  document.addEventListener('mousemove', showUI, { passive:true });
-  document.addEventListener('keydown', (e)=>{ if(e.key.toLowerCase()==='f') showUI(); });
-
-  renderList();
-  pingStreams(); setInterval(pingStreams, 8000);
-</script>
-
-<!-- LiveKit - التحميل من نطاقك (عند الحاجة) -->
-<script>
-  async function ensureLiveKit(){
-    if (window.LiveKit) return window.LiveKit;
-    await loadScript('/vendor/livekit-client.umd.min.js');
-    if (!window.LiveKit) throw new Error('LiveKit library did not load');
-    return window.LiveKit;
-  }
-  async function joinLiveKit(){
-    try{
-      const LK = await ensureLiveKit();
-      alert('LiveKit جاهز للاتصال، أكمل منطق التوكن لاحقًا.');
-    }catch(e){
-      console.error('joinLiveKit error', e);
-      alert('تعذّر الانضمام: '+(e?.message||e));
-    }
-  }
+$('#btnJoin').onclick = joinLiveKit;
+$('#btnLeave').onclick = leaveLiveKit;
+$('#btnCam').onclick   = toggleCam;
+$('#btnMic').onclick   = toggleMic;
 </script>
 </body>
 </html>

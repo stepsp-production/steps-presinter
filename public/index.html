@@ -29,6 +29,7 @@
     }
   </script>
 
+  <!-- أيقونة -->
   <link rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
@@ -43,13 +44,16 @@
     #playerContainer{position:relative;width:100vw;height:100vh}
     .videoFrame{position:absolute;top:0;right:0;width:100%;height:100%;background:#000;overflow:hidden}
 
+    /* المعاينة المصغّرة */
     #mainPreview{position:absolute;top:16px;right:20px;width:22%;height:24%;z-index:6;border:1px solid #fff2;border-radius:18px;cursor:pointer;transition:transform .18s,box-shadow .18s,width .18s,height .18s,top .18s,right .18s,left .18s}
     #mainPreview:hover{box-shadow:0 10px 30px #0008}
     #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
 
+    /* تقسيم (MAIN يمين دائمًا) */
     .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
     .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
 
+    /* أوضاع التقسيم */
     .split.mode1 #mainPreview video,
     .split.mode1 #activeCam  video{object-fit:contain}
     .split.mode2 #mainPreview video,
@@ -57,6 +61,7 @@
     .split.mode3 #mainPreview video,
     .split.mode3 #activeCam  video{object-fit:cover}
 
+    /* تكبير المعاينة */
     .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
     .main-full #activeCam{display:none}
     .main-full.cover-one #mainPreview video{object-fit:cover}
@@ -64,10 +69,23 @@
     .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
     .split .hint,.main-full .hint{display:none}
 
-    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap}
+    /* شريط الأدوات والقائمة */
+    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
     #utilityControls{top:10px;right:10px}
     #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
     #globalControls.hidden{display:none}
+
+    /* LiveKit panel */
+    #lkPanel{position:absolute; bottom:14px; right:14px; z-index:20; background:var(--panel-bg); border:1px solid var(--panel-bd); border-radius:14px; padding:10px; backdrop-filter: blur(8px); display:flex; flex-direction:column; gap:8px; width: min(92vw, 520px); transition:opacity .18s}
+    #lkPanel h3{margin:0;color:#fff;font-size:13px}
+    #lkGrid{display:grid; grid-template-columns: repeat( auto-fit, minmax(120px,1fr) ); gap:8px; max-height:34vh; overflow:auto;}
+    .tile{position:relative; background:#0b0b0f; border:1px solid #ffffff22; border-radius:10px; overflow:hidden; min-height:90px}
+    .tile video{width:100%;height:100%;object-fit:cover;display:block}
+    .badge{position:absolute; left:6px; top:6px; background:#000a; color:#fff; font-size:10px; padding:2px 6px; border-radius:999px; border:1px solid #fff2}
+    #lkControls{display:flex; gap:6px; flex-wrap:wrap}
+    #lkControls select, #lkControls input, #lkControls .text{font-size:11px}
+    #lkControls select, #lkControls input{background:#10151f; color:#fff; border:1px solid #ffffff22; border-radius:10px; padding:8px}
+    #lkHint{color:#eaeaf0b3; font-size:11px}
 
     button{-webkit-tap-highlight-color:transparent;appearance:none;border:0;outline:0;cursor:pointer;background:var(--btn-bg);color:var(--btn-txt);padding:11px 12px;font-size:12px;font-weight:800;border-radius:12px;letter-spacing:.2px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 18px #000a,0 0 0 0 rgba(0,193,154,.28);transition:transform .12s,box-shadow .12s,background .12s}
     button:hover{background:var(--btn-bg-h);box-shadow:0 12px 26px #000c,0 0 0 6px rgba(0,193,154,.28)}
@@ -77,13 +95,15 @@
     #scrub::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid #0006;cursor:pointer}
     #timeLabel{color:#fff;font-size:12px;min-width:108px;text-align:center}
 
+    /* بوابة البدء */
     #gatePlay{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2))}
     #gatePlay.hidden{display:none}
     .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
-    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
+    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bد);color:#fff;background:#111a;font-size:18px}
     #startBtn{min-width:160px}
 
-    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff;}
+    /* القائمة الجانبية */
+    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s}
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
     .stream-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20); backdrop-filter: blur(2px); transition:background .12s, border-color .12s, transform .06s;}
@@ -93,6 +113,19 @@
     .dot{width:8px;height:8px;border-radius:50%;background:#808080;border:1px solid #0006;box-shadow:0 0 0 1px #0008 inset}
     .dot.ok{background:#20d05a}
 
+    /* إخفاء واجهة التحكم تلقائيًا (تظهر بالحركة) */
+    .ui-hidden #streamPanel,
+    .ui-hidden #utilityControls,
+    .ui-hidden #globalControls,
+    .ui-hidden #lkPanel,
+    .ui-hidden .hint { opacity:0; pointer-events:none }
+    .ui-visible #streamPanel,
+    .ui-visible #utilityControls,
+    .ui-visible #globalControls,
+    .ui-visible #lkPanel,
+    .ui-visible .hint { opacity:1; pointer-events:auto }
+
+    /* طبقات وتلاشي التبديل */
     .layer{position:absolute; inset:0;}
     .fade-in{animation:fadeIn .18s ease forwards}
     .fade-out{animation:fadeOut .18s ease forwards}
@@ -105,21 +138,11 @@
       #scrub{width:clamp(140px,56vw,380px)}
       #streamPanel{width:190px}
     }
-
-    #lkPanel{position:absolute; bottom:14px; right:14px; z-index:20; background:var(--panel-bg); border:1px solid var(--panel-bd); border-radius:14px; padding:10px; backdrop-filter: blur(8px); display:flex; flex-direction:column; gap:8px; width: min(92vw, 520px);}
-    #lkPanel h3{margin:0;color:#fff;font-size:13px}
-    #lkGrid{display:grid; grid-template-columns: repeat( auto-fit, minmax(120px,1fr) ); gap:8px; max-height:34vh; overflow:auto;}
-    .tile{position:relative; background:#0b0b0f; border:1px solid #ffffff22; border-radius:10px; overflow:hidden; min-height:90px}
-    .tile video{width:100%;height:100%;object-fit:cover;display:block}
-    .badge{position:absolute; left:6px; top:6px; background:#000a; color:#fff; font-size:10px; padding:2px 6px; border-radius:999px; border:1px solid #fff2}
-    #lkControls{display:flex; gap:6px; flex-wrap:wrap}
-    #lkControls select, #lkControls input, #lkControls .text{font-size:11px}
-    #lkControls select, #lkControls input{background:#10151f; color:#fff; border:1px solid #ffffff22; border-radius:10px; padding:8px}
-    #lkHint{color:#eaeaf0b3; font-size:11px}
   </style>
 </head>
 <body>
-  <div id="playerContainer" aria-label="مشغّل متعدد الكاميرات">
+  <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
+    <!-- القائمة الجانبية -->
     <aside id="streamPanel" aria-label="مصادر البث">
       <div class="panel-title">SOURCES</div>
       <ul id="streamList"></ul>
@@ -127,8 +150,9 @@
 
     <div id="activeCam" class="videoFrame" aria-label="الكاميرا النشطة"></div>
     <div id="mainPreview" class="videoFrame" title="انقر للتكبير/التصغير" aria-label="المعاينة الرئيسية المصغّرة"></div>
-    <div class="hint">انقر على المعاينة للتكبير • أو اضغط F</div>
+    <div class="hint">حرّك الماوس لإظهار الواجهة • انقر المعاينة للتكبير • S تقسيم • F ملء</div>
 
+    <!-- بوابة البدء -->
     <div id="gatePlay" role="dialog" aria-modal="true" aria-label="بدء التشغيل">
       <div class="gate-card">
         <div class="icon">▶</div>
@@ -140,12 +164,14 @@
       </div>
     </div>
 
+    <!-- أدوات -->
     <div id="utilityControls" role="toolbar" aria-label="أدوات">
       <button id="btnSplit" aria-label="تبديل وضع التقسيم" title="تقسيم">تقسيم</button>
       <button id="btnFill"  aria-label="تبديل ملء المحتوى" title="ملء">ملء</button>
       <button id="btnSound" aria-label="تشغيل/إيقاف الصوت" title="صوت">🔊/🔇</button>
     </div>
 
+    <!-- الشريط الموحّد -->
     <div id="globalControls" class="hidden" role="group" aria-label="تحكم موحّد">
       <button id="gBack" title="⏪ -5s">⏪ 5s</button>
       <button id="gPlay" title="⏯">⏯</button>
@@ -155,6 +181,7 @@
     </div>
   </div>
 
+  <!-- لوحة LiveKit -->
   <div id="lkPanel" aria-label="LiveKit Panel">
     <h3>الغرفة المباشرة (LiveKit)</h3>
     <div id="lkControls">
@@ -185,17 +212,15 @@
     window.TOKEN_BASE  = window.TOKEN_BASE  || 'https://steps-livekit-api.onrender.com';
   </script>
 
-  <!-- مصادر البث (تصحيح تكرار /hls وعدم إخفاء القائمة أبداً) -->
+  <!-- مصادر البث + بناء الروابط بدون تكرار /hls -->
   <script>
     (function(){
       const BASE = String(window.HLS_BASE||'').replace(/\/+$/,'');
-
       function build(p){
         let path = '/' + String(p||'').replace(/^\/+/, '');
         if (/\/hls$/i.test(BASE)) path = path.replace(/^\/hls(\/|$)/i, '/');
         return BASE + path;
       }
-
       window.sources = {
         main: build('/hls/live/playlist.m3u8'),
         cam1: build('/hls/lastone/playlist.m3u8'),
@@ -206,7 +231,6 @@
         cam6: build('/hls/live6/playlist.m3u8'),
         cam7: build('/hls/live7/playlist.m3u8')
       };
-
       window.channelMap = [
         {id:'main',label:'MAIN',src:sources.main},
         {id:'cam1',label:'Cam1',src:sources.cam1},
@@ -220,15 +244,13 @@
     })();
   </script>
 
-  <!-- منطق التشغيل -->
+  <!-- منطق التشغيل + الإخفاء التلقائي -->
   <script>
     const SAFETY_EDGE   = 0.80;
     const SHOW_MIN_BUF  = 1.25;
-    const STARVED_RESEEK= 0.25;
 
     function getSeekableRange(v){try{const r=v.seekable;if(!r||!r.length)return null;return{start:r.start(r.length-1),end:r.end(r.length-1)};}catch(e){return null;}}
     function capLiveEdge(v,t){const m=getSeekableRange(v); if(!m) return t; return Math.min(t, m.end - SAFETY_EDGE);}
-    function bufferedAhead(v){try{const b=v.buffered;const t=v.currentTime||0;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);if(t>=s && t<=e) return Math.max(0,e-t);} }catch(e){} return 0;}
     function containsTime(v,t){try{const b=v.buffered;for(let i=0;i<b.length;i++){if(t>=b.start(i)&&t<=b.end(i)) return {start:b.start(i),end:b.end(i)};} }catch(e){} return null;}
     function nearestBufferedTime(v,t){try{const b=v.buffered;let best=null,dm=1e9;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);const cand=(t<s)?s:(t>e?e:t);const d=Math.abs(cand-t);if(d<dm){dm=d;best=cand;}} return best;}catch(e){return null;}}
     function snapIntoBuffer(v,t){t=capLiveEdge(v,t); const r=containsTime(v,t); if(r) return t; const near=nearestBufferedTime(v,t); return typeof near==='number'?near:t;}
@@ -237,18 +259,16 @@
       const Hls = await ensureHls();
       const hls=new Hls({
         lowLatencyMode:false,
-        liveSyncDurationCount:3, liveMaxLatencyDurationCount:6, maxLiveSyncPlaybackRate:1.0,
+        liveSyncDurationCount:3, liveMaxLatencyDurationCount:6,
         maxBufferLength:18, backBufferLength:14, maxBufferSize:40*1000*1000,
         capLevelToPlayerSize:true, enableWorker:true,
         maxBufferHole:0.15, maxSeekHole:0.25, nudgeOffset:0.12, nudgeMaxRetry:10,
         abrMaxWithRealBitrate:true,
-        fragLoadingMaxRetry:4, manifestLoadingMaxRetry:4, levelLoadingMaxRetry:3,
-        fragLoadingRetryDelay:600, manifestLoadingRetryDelay:700, levelLoadingRetryDelay:700,
         xhrSetup:(xhr)=>{try{xhr.withCredentials=false;}catch(e){}}
       });
       video.__hls=hls; hls.attachMedia(video);
       hls.on(Hls.Events.MEDIA_ATTACHED,()=>hls.loadSource(url));
-      hls.on(Hls.Events.ERROR,(_,err)=>{console.warn('[HLS] ERROR',err); if(err?.fatal){ try{hls.destroy();}catch(_){ } }});
+      hls.on(Hls.Events.ERROR,(_,err)=>{console.warn('[HLS] ERROR',err);});
       return hls;
     }
 
@@ -309,7 +329,6 @@
 
     function buildStreamList(){
       streamList.innerHTML='';
-      // لا نستخدم أي فلتر — نعرض الجميع دائماً:
       (window.channelMap||[]).forEach(ch=>{
         const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam=ch.id;
         const dot=document.createElement('span'); dot.className='dot'; dot.title='status';
@@ -323,9 +342,7 @@
         const items=[...document.querySelectorAll('.stream-item')];
         const n=Number(e.key); if(n>=1 && n<=items.length) items[n-1].click();
       });
-      // فحص الحالة كل 8 ثوان
-      pingStreams();
-      setInterval(pingStreams, 8000);
+      pingStreams(); setInterval(pingStreams, 8000);
     }
     function markActiveList(){document.querySelectorAll('.stream-item').forEach(el=>{el.classList.toggle('active',el.dataset.cam===currentCam);});}
 
@@ -371,7 +388,25 @@
       setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
     }
 
-    // لا إخفاء تلقائي للواجهة الآن حتى لا تختفي القائمة
+    // ===== إخفاء الواجهة تلقائيًا (يظهر بالحركة) =====
+    let uiTimer=null;
+    function showUI(){
+      root.classList.remove('ui-hidden'); root.classList.add('ui-visible');
+      clearTimeout(uiTimer);
+      uiTimer=setTimeout(()=>{
+        root.classList.add('ui-hidden'); root.classList.remove('ui-visible');
+      }, 2500);
+    }
+    ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true}));
+    // أثناء المرور على البانلات، لا تُخفي
+    [document.getElementById('streamPanel'), document.getElementById('utilityControls'), document.getElementById('globalControls'), document.getElementById('lkPanel')].forEach(el=>{
+      el.addEventListener('mouseenter',()=>{clearTimeout(uiTimer); root.classList.remove('ui-hidden'); root.classList.add('ui-visible');});
+      el.addEventListener('mouseleave',showUI);
+    });
+    // تشغيل أولي لمؤثر الإخفاء بعد ثانية
+    setTimeout(showUI,1000);
+
+    // تفاعل المعاينة
     document.getElementById('mainPreview').addEventListener('click',()=>{
       if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull);
     });
@@ -402,14 +437,14 @@
     }
 
     const gSeek=(ofs)=>{ if(!started || !mainPlayer) return; const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs); mainPlayer.currentTime=t; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,t); };
-    document.getElementById('gBack').addEventListener('click',()=>gSeek(-5));
-    document.getElementById('gFwd').addEventListener('click',()=>gSeek( 5));
-    document.getElementById('gPlay').addEventListener('click',async()=>{ if(!started) return; if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}} else mainPlayer.pause(); });
+    gBack.addEventListener('click',()=>gSeek(-5));
+    gFwd .addEventListener('click',()=>gSeek( 5));
+    gPlay.addEventListener('click',async()=>{ if(!started) return; if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}} else mainPlayer.pause(); });
 
     scrub.addEventListener('input',()=>{ if(started) isScrubbing=true; });
     scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(mainPlayer, parseFloat(scrub.value)||0); mainPlayer.currentTime=nt; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,nt); isScrubbing=false; });
 
-    document.getElementById('btnSplit').addEventListener('click',()=>{
+    btnSplit.addEventListener('click',()=>{
       splitMode=(splitMode+1)%4;
       root.classList.toggle('split', splitMode!==0);
       root.classList.remove('mode1','mode2','mode3');
@@ -417,7 +452,7 @@
       if(splitMode===2) root.classList.add('mode2');
       if(splitMode===3) root.classList.add('mode3');
     });
-    document.getElementById('btnFill').addEventListener('click',()=>{
+    btnFill.addEventListener('click',()=>{
       if(splitMode===0){
         isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull);
       }else{
@@ -427,16 +462,16 @@
         root.classList.add('split');
       }
     });
-    document.getElementById('btnSound').addEventListener('click',()=>{ if(!started || !mainPlayer) return; mainPlayer.muted=!mainPlayer.muted; if(!mainPlayer.muted) mainPlayer.play().catch(()=>{}); });
+    btnSound.addEventListener('click',()=>{ if(!started || !mainPlayer) return; mainPlayer.muted=!mainPlayer.muted; if(!mainPlayer.muted) mainPlayer.play().catch(()=>{}); });
 
-    document.getElementById('startBtn').addEventListener('click',startPlayback);
+    startBtn.addEventListener('click',startPlayback);
     document.addEventListener('keydown',(e)=>{
       if(e.key===' '||e.key==='Enter'){ e.preventDefault(); startPlayback(); }
-      if(e.key==='S'||e.key==='s'){ document.getElementById('btnSplit').click(); }
-      if(e.key==='F'||e.key==='f'){ document.getElementById('btnFill').click(); }
-      if(e.key==='M'||e.key==='m'){ document.getElementById('btnSound').click(); }
-      if(e.key==='ArrowLeft'){ document.getElementById('gBack').click(); }
-      if(e.key==='ArrowRight'){ document.getElementById('gFwd').click(); }
+      if(e.key==='S'||e.key==='s'){ btnSplit.click(); }
+      if(e.key==='F'||e.key==='f'){ btnFill .click(); }
+      if(e.key==='M'||e.key==='m'){ btnSound.click(); }
+      if(e.key==='ArrowLeft'){ gBack.click(); }
+      if(e.key==='ArrowRight'){ gFwd .click(); }
     });
   </script>
 

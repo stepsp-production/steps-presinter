@@ -10,12 +10,12 @@ export async function onRequest({ request, env, params }) {
   const sub = '/' + (params?.path || '');
   const qs  = reqUrl.search || '';
   const isDiag = reqUrl.searchParams.has('diag');
-  const isPing = reqUrl.searchParams.has('ping'); // ping من الواجهة
+  const isPing = reqUrl.searchParams.has('ping');
 
   const upstreamPath = `${UP_PREFIX}${sub}`.replace(/\/{2,}/g, '/');
   const upstreamUrl  = `${ORIGIN_BASE}${upstreamPath}${qs}`;
 
-  // حوّل HEAD إلى GET + Range صغير
+  // حوّل HEAD إلى GET + Range بسيط حتى لا يفشل الـ ping
   const method = request.method === 'HEAD' ? 'GET' : request.method;
 
   const fwd = new Headers();
@@ -35,7 +35,7 @@ export async function onRequest({ request, env, params }) {
     up = await fetch(upstreamUrl, { method, headers: fwd, redirect: 'follow' });
   } catch (e) {
     if (isDiag) {
-      return new Response(JSON.stringify({ ok:false, when:'fetch', error: e?.message || String(e), upstreamUrl }), {
+      return new Response(JSON.stringify({ ok:false, stage:'fetch', error: e?.message || String(e), upstreamUrl }), {
         status: 502,
         headers: { 'Content-Type':'application/json; charset=utf-8', 'Access-Control-Allow-Origin':'*' }
       });
@@ -43,14 +43,15 @@ export async function onRequest({ request, env, params }) {
     return new Response('Upstream fetch error', { status: 502 });
   }
 
-  // وضع التشخيص: أعطني ملخّصًا بدل الجسم
+  // تشخيص سريع
   if (isDiag) {
-    const ct = up.headers.get('content-type');
     const head = {};
     up.headers.forEach((v,k)=> head[k]=v);
     return new Response(JSON.stringify({
       ok: up.ok, status: up.status, statusText: up.statusText,
-      upstreamUrl, contentType: ct, headers: head
+      upstreamUrl,
+      contentType: up.headers.get('content-type') || null,
+      headers: head
     }, null, 2), {
       status: up.ok ? 200 : up.status,
       headers: { 'Content-Type':'application/json; charset=utf-8', 'Access-Control-Allow-Origin':'*' }
@@ -65,19 +66,19 @@ export async function onRequest({ request, env, params }) {
 
   const isM3U8 = /\.m3u8(\?.*)?$/i.test(sub);
 
-  // لو الطلب الأصلي HEAD: نرجع بدون جسم
+  // لطلبات الـ HEAD نعيد حالة نجاح بدون جسم
   if (request.method === 'HEAD') {
     const status = up.ok || up.status === 206 ? 200 : up.status;
     return new Response(null, { status, headers: hdr });
   }
 
   if (!up.ok) {
-    const body = await up.text().catch(()=>'');
+    const body = await up.text().catch(()=> '');
     hdr.set('Cache-Control','no-store');
     return new Response(body || 'Upstream not ok', { status: up.status, headers: hdr });
   }
 
-  // السماح للـ ping بتجاوز فحص EXTM3U (الغرض مجرد تحقّق سريع)
+  // اسمح للـ ping بتجاوز فحص EXTM3U
   if (isPing && isM3U8) {
     hdr.set('Cache-Control','no-store');
     hdr.set('Content-Type', up.headers.get('content-type') || 'application/vnd.apple.mpegurl');
@@ -100,13 +101,16 @@ export async function onRequest({ request, env, params }) {
     return new Response('Bad upstream manifest (not M3U8).', { status: 502, headers: hdr });
   }
 
+  // إعادة كتابة روابط المانيفست إلى /hls لنفس الأصل العام
   function toPublicPath(p) {
     if (!p) return p;
     if (/^https?:\/\//i.test(p)) {
       try {
         const u = new URL(p);
         let path = u.pathname || '/';
-        if (UP_PREFIX && path.startsWith(UP_PREFIX)) path = path.slice(UP_PREFIX.length) || '/';
+        if (UP_PREFIX && path.startsWith(UP_PREFIX)) {
+          path = path.slice(UP_PREFIX.length) || '/';
+        }
         return `${PUBLIC_BASE}${path}${u.search || ''}`;
       } catch { return p; }
     }

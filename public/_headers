@@ -1,6 +1,5 @@
 /*
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://hls-proxy.it-f2c.workers.dev https://*.trycloudflare.com https://steps-livekit-api.onrender.com wss://*.livekit.cloud; media-src 'self' blob: https://hls-proxy.it-f2c.workers.dev https://*.trycloudflare.com; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:;
-  Permissions-Policy: camera=(self), microphone=(self), fullscreen=(self)
-  X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin
-  Cache-Control: public, max-age=60
+  Content Security Policy for HLS + LiveKit + CDN fallbacks
+*/
+* 
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https://hls-proxy.it-f2c.workers.dev https://steps-livekit-api.onrender.com https://*.trycloudflare.com wss://*.livekit.cloud; media-src 'self' https://hls-proxy.it-f2c.workers.dev blob: data:; img-src 'self' data: blob:; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'

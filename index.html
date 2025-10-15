@@ -1,375 +1,383 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <title>لوحة المراقبة - HLS + LiveKit</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- ملاحظة: الـ CSP يتم عبر _headers على Pages وليس هنا -->
-  <style>
-    :root{--bg:#0b0d10;--card:#12151a;--muted:#7b8694;--ok:#19c37d;--bad:#e54;--warn:#f6c41c;}
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:#e9eef5;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Noto Sans Arabic",Tahoma,Arial,sans-serif}
-    header{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px;background:#0f1216;position:sticky;top:0;z-index:5;border-bottom:1px solid #1c212b}
-    header .left, header .right{display:flex;gap:10px;align-items:center}
-    .badge{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;background:#141923;border:1px solid #202735;color:#b7c3d1;font-size:13px}
-    .btn{background:#1a212c;color:#e9eef5;border:1px solid #2a3442;border-radius:10px;padding:8px 12px;cursor:pointer}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
-    .toggle{display:inline-flex;gap:8px;align-items:center}
-    .row{display:grid;grid-template-columns:320px 1fr;gap:16px;padding:16px}
-    @media (max-width:1100px){.row{grid-template-columns:1fr}}
-    .card{background:var(--card);border:1px solid #1c232f;border-radius:14px}
-    .card h3{margin:0;padding:12px 14px;border-bottom:1px solid #1c232f;color:#dfe8f3;font-size:15px}
-    .card .body{padding:12px}
-    .rooms{max-height:60vh;overflow:auto}
-    .room{display:flex;align-items:center;justify-content:space-between;border:1px solid #1b2230;background:#0f141b;margin-bottom:8px;border-radius:10px;padding:8px}
-    .room .meta small{display:block;color:#8ea0b6}
-    .room .status{width:10px;height:10px;border-radius:50%;}
-    .room .status.ok{background:var(--ok)}
-    .room .status.bad{background:var(--bad)}
-    .cams{display:grid;grid-template-columns: repeat(4, 1fr); gap:10px}
-    @media (max-width:1350px){.cams{grid-template-columns: repeat(3, 1fr)}}
-    @media (max-width:980px){.cams{grid-template-columns: repeat(2, 1fr)}}
-    @media (max-width:640px){.cams{grid-template-columns: 1fr}}
-    video{width:100%;aspect-ratio:16/9;background:black;border-radius:12px;border:1px solid #1c232f}
-    .mainWrap{grid-column:1/-1}
-    .streamCard{position:relative}
-    .dot{position:absolute;top:8px;left:8px;width:10px;height:10px;border-radius:50%;box-shadow:0 0 0 2px #0f141b}
-    .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)}
-    .label{position:absolute;bottom:8px;right:8px;background:#0e1220b3;padding:4px 8px;border-radius:8px;border:1px solid #233046;color:#c9d6e4;font-size:12px}
-    .thumb{cursor:pointer;transition:transform .15s ease}
-    .thumb:hover{transform:scale(1.01)}
-    .help{color:var(--muted);font-size:12px;margin-top:8px}
-    .muted{color:var(--muted)}
-    .controls{display:flex;flex-wrap:wrap;gap:8px}
-    .switch{position:relative;display:inline-flex;align-items:center;gap:8px}
-    .switch input{appearance:none;width:38px;height:22px;background:#1a212c;border-radius:999px;border:1px solid #2a3442;position:relative;outline:none;cursor:pointer}
-    .switch input:checked{background:#15351e;border-color:#1f5a33}
-    .switch input::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;background:#e9eef5;border-radius:50%;transition:left .15s ease}
-    .switch input:checked::after{left:18px}
-    .error{color:#ffb4aa}
-    footer{padding:10px 16px;color:#7f8ea3}
-  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>لوحة المراقبة</title>
+
+  <!-- لا نضع CSP داخل HTML؛ نستخدم ملف _headers في Cloudflare Pages -->
+
+  <!-- مسارات المكتبات المحلية كما كانت لديك.
+       إن لم تكن موجودة فعليًا، سيجري التحميل تلقائيًا من CDN (انظر البلوك في آخر الصفحة). -->
   <script defer src="/vendor/hls.min.js"></script>
   <script defer src="/vendor/livekit-client.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0f1115; --panel:#151824; --muted:#7e88a3; --text:#e6ecf1; --ok:#17c964; --warn:#f5a524; --err:#f31260; --brand:#006fee;
+      --card:#111522; --border:#24283a;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:var(--bg); color:var(--text); font:14px/1.6 system-ui, -apple-system, Segoe UI, Roboto, "Noto Kufi Arabic", "Dubai", "Tajawal", sans-serif;
+    }
+    .app{display:grid; grid-template-columns:280px 1fr; min-height:100vh}
+    header{
+      grid-column:1 / -1; display:flex; align-items:center; justify-content:space-between;
+      padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5;
+    }
+    header .actions{display:flex; gap:8px; align-items:center}
+    button{
+      background:#1b2134; color:var(--text); border:1px solid var(--border); padding:8px 12px; border-radius:10px; cursor:pointer;
+    }
+    button.primary{background:var(--brand); border-color:var(--brand); color:#fff}
+    button.ghost{background:transparent}
+    button:disabled{opacity:.5; cursor:not-allowed}
+    .sidebar{
+      background:var(--panel); border-inline-start:1px solid var(--border); padding:12px 10px; overflow:auto
+    }
+    .section-title{font-weight:700; color:#aab6d1; font-size:13px; margin:8px 0 6px}
+    .rooms{display:flex; flex-direction:column; gap:6px}
+    .room{
+      background:var(--card); border:1px solid var(--border); border-radius:12px; overflow:hidden;
+    }
+    .room-hd{
+      display:flex; align-items:center; justify-content:space-between; padding:8px 10px; cursor:pointer; user-select:none;
+      background:linear-gradient(180deg, #131729, #101427);
+    }
+    .room-hd .name{font-weight:700}
+    .pill{
+      display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; border:1px solid var(--border); background:#0e1323; font-size:12px;
+    }
+    .dot{width:10px; height:10px; border-radius:50%; background:#3b3f55; box-shadow:0 0 0 1px rgba(0,0,0,.2) inset}
+    .dot.ok{background:var(--ok)}
+    .dot.warn{background:var(--warn)}
+    .dot.err{background:var(--err)}
+    .room-bd{padding:10px; display:grid; grid-template-columns:repeat(2,1fr); gap:8px; background:#0f1324; border-top:1px solid var(--border)}
+    .cam-btn{
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding:7px 9px; border-radius:10px; background:#12172a; border:1px solid var(--border); cursor:pointer;
+    }
+    .cam-btn span{font-weight:600}
+    .main{
+      padding:12px; overflow:auto;
+      display:grid; grid-template-rows:auto 1fr; gap:12px;
+    }
+    .grid{
+      display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
+    }
+    .card{
+      background:#0e1323; border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
+    }
+    .card h4{margin:0; padding:8px 10px; border-bottom:1px solid var(--border); color:#aab6d1}
+    video{
+      width:100%; height:240px; background:#000; display:block;
+    }
+    .toolbar{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    }
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; background:#0b0f1d; border:1px solid var(--border); padding:2px 6px; border-radius:6px; color:#b6c3e0}
+    @media (max-width:1200px){ .grid{grid-template-columns:repeat(3,1fr)} }
+    @media (max-width:900px){ .grid{grid-template-columns:repeat(2,1fr)} }
+    @media (max-width:600px){ .app{grid-template-columns:1fr} .sidebar{order:2} }
+  </style>
 </head>
 <body>
   <header>
-    <div class="left">
-      <span class="badge">لوحة المراقبة</span>
-      <span id="cspNote" class="badge" title="CSP / الاتصالات">CSP OK</span>
+    <div class="title">
+      <strong>لوحة المراقبة</strong>
     </div>
-    <div class="right controls">
-      <label class="switch" title="مزامنة كل الكاميرات مع الرئيسية بشكل مستمر">
-        <input id="autoSyncToggle" type="checkbox" />
-        <span>مزامنة تلقائية</span>
-      </label>
-      <button id="syncNowBtn" class="btn" title="مزامنة الآن">مزامنة الآن</button>
-      <button id="reloadBtn" class="btn" title="إعادة تحميل">إعادة تحميل</button>
+    <div class="actions">
+      <button id="btnPlayAll" class="primary">تشغيل الكل</button>
+      <button id="btnPauseAll">إيقاف الكل</button>
+      <button id="btnSync" class="ghost">مزامنة</button>
+      <span class="kbd">HLS عبر Worker</span>
     </div>
   </header>
 
-  <div class="row">
-    <!-- لوحة الغرف -->
-    <section class="card">
-      <h3>الغرف (LiveKit)</h3>
-      <div class="body rooms" id="roomsBox">
-        <div class="help">سيتم تحميل قائمة الغرف تلقائياً. إن لم تظهر، تحقق من API: <span class="muted">https://steps-livekit-api.onrender.com</span></div>
-      </div>
-      <div class="body">
-        <div class="controls">
-          <button id="refreshRoomsBtn" class="btn">تحديث الغرف</button>
-          <button id="leaveRoomBtn" class="btn" disabled>مغادرة الغرفة</button>
-        </div>
-        <div id="roomStatus" class="help"></div>
-      </div>
-    </section>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="section-title">الغرف (10)</div>
+      <div class="rooms" id="rooms"></div>
+    </aside>
 
-    <!-- الفيديوهات -->
-    <section class="card">
-      <h3>الكاميرات (HLS)</h3>
-      <div class="body">
-        <div id="cams" class="cams">
-          <!-- الرئيسية -->
-          <div class="streamCard mainWrap">
-            <span class="dot bad" id="dot-main"></span>
-            <span class="label">MAIN - live</span>
-            <video id="video-main" playsinline autoplay muted></video>
-          </div>
-          <!-- البقية -->
-        </div>
-        <div class="help">إذا ظهرت الشاشة سوداء مع أن التحميل يعمل، اضغط على الفيديو للتشغيل يدويًا (سياسة المتصفح)، أو عطّل كتم الصوت مؤقتًا ثم أعد التشغيل.</div>
+    <main class="main">
+      <div class="toolbar">
+        <span>الغرفة النشطة: <strong id="activeRoomName">—</strong></span>
+        <span id="lkStatus" class="pill"><i class="dot" id="lkDot"></i> LiveKit</span>
+        <span id="mainStatus" class="pill"><i class="dot" id="mainDot"></i> main</span>
       </div>
-    </section>
+
+      <section class="grid" id="grid">
+        <!-- سيتم ملؤها برمجياً بالبطاقات والفيديوهات -->
+      </section>
+    </main>
   </div>
 
-  <footer>تشغيل عبر HLS Proxy: <span id="baseHost" class="muted"></span> — آخر حالة: <span id="lastMsg" class="muted">—</span></footer>
+  <!-- ====== التهيئة العامة (ضبط المسارات وأسماء الكاميرات) ====== -->
+  <script>
+    // قاعدة HLS النهائية: الوركر المربوط مع التانل (كما طلبت)
+    const HLS_BASE = 'https://hls-proxy.it-f2c.workers.dev';
 
-<script>
-/** إعدادات عامة **/
-window.HLS_BASE = "https://hls-proxy.it-f2c.workers.dev"; // الوركر الذي يربط التانل
-const LIVEKIT_API = "https://steps-livekit-api.onrender.com"; // API الخارجي لديك (قراءة الغرف/توكِن)
-const STREAMS = [
-  { key: "main",  path: "/hls/live/playlist.m3u8",  label: "MAIN - live"},
-  { key: "live2", path: "/hls/live2/playlist.m3u8", label: "live2"},
-  { key: "live3", path: "/hls/live3/playlist.m3u8", label: "live3"},
-  { key: "live4", path: "/hls/live4/playlist.m3u8", label: "live4"},
-  { key: "live5", path: "/hls/live5/playlist.m3u8", label: "live5"},
-  { key: "live6", path: "/hls/live6/playlist.m3u8", label: "live6"},
-  { key: "live7", path: "/hls/live7/playlist.m3u8", label: "live7"},
-  { key: "last",  path: "/hls/lastone/playlist.m3u8", label: "lastone"}
-];
-const hlsPlayers = new Map(); // key -> {hls, video}
+    // مفاتيح الكاميرات (لا تغيّر ترتيب العرض لديك)
+    const CAMERA_KEYS = ['live', 'lastone', 'live2', 'live3', 'live4', 'live5', 'live6', 'live7'];
 
-/** مساعدات واجهة **/
-const $ = (sel)=>document.querySelector(sel);
-const mk = (tag, cls)=>{const el = document.createElement(tag); if(cls) el.className=cls; return el;}
-const setDot = (key, state)=> {
-  const dot = document.getElementById("dot-"+key);
-  if(!dot) return;
-  dot.classList.remove("ok","bad","warn");
-  dot.classList.add(state);
-};
-const log = (msg)=> { $("#lastMsg").textContent = msg; }
+    // توليد غرف افتراضية room-1 .. room-10 (إن كان لديك أسماء أخرى استبدل هذه القيم)
+    const ROOMS = Array.from({length: 10}, (_,i)=> ({ id:`room-${i+1}`, name:`الغرفة ${i+1}` }));
 
-/** بناء بطاقات الكاميرات الثانوية **/
-(function buildCams(){
-  const wrap = $("#cams");
-  STREAMS.filter(s=>s.key!=="main").forEach(s=>{
-    const card = mk("div","streamCard thumb");
-    card.title = "انقر لجعلها رئيسية";
-    const dot = mk("span","dot bad"); dot.id = "dot-"+s.key; card.appendChild(dot);
-    const lbl = mk("span","label"); lbl.textContent = s.label; card.appendChild(lbl);
-    const v = mk("video"); v.id = "video-"+s.key; v.playsInline = true; v.muted = true; v.autoplay = true; card.appendChild(v);
-    card.addEventListener("click", ()=>swapToMain(s.key));
-    wrap.appendChild(card);
-  });
-})();
+    // API الخاص بإصدار توكن LiveKit
+    const LIVEKIT_API = 'https://steps-livekit-api.onrender.com';
 
-/** تشغيل HLS على عنصر فيديو معين **/
-async function attachHlsTo(video, url, key){
-  try {
-    if(window.Hls && window.Hls.isSupported()){
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: true,
-        backBufferLength: 30,
-      });
-      hls.loadSource(url);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, async()=>{
-        setDot(key,"ok");
-        try { await video.play(); } catch(e){ /* تجاهل */ }
-      });
-      hls.on(Hls.Events.ERROR, (e, data)=>{
-        if(data?.fatal){
-          setDot(key,"bad");
-          log(`[HLS:${key}] ${data.details || data.type}`);
-          try { hls.destroy(); } catch(_){}
-        }else{
-          setDot(key,"warn");
-        }
-      });
-      hlsPlayers.set(key, {hls, video});
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = url;
-      video.addEventListener('loadedmetadata', async()=>{ setDot(key,"ok"); try{await video.play();}catch(_){}} );
-      hlsPlayers.set(key, {hls:null, video});
-    } else {
-      setDot(key,"bad");
-      log("Hls.js غير مدعوم في هذا المتصفح.");
+    // تحويل مفتاح الكاميرا لمسار m3u8
+    const toPath = (key)=> `/hls/${key}/playlist.m3u8`;
+
+    // حالة عامة
+    const state = {
+      activeRoom: ROOMS[0].id,
+      hlsByKey: {},      // key -> Hls instance
+      videoByKey: {},    // key -> <video>
+      roomObj: null      // LiveKit Room
+    };
+  </script>
+
+  <!-- ====== مولّد واجهة الغرف واللاعبين (لا يغيّر ستايلك بل يملأ المحتوى فقط) ====== -->
+  <script>
+    const $rooms = document.getElementById('rooms');
+    const $grid  = document.getElementById('grid');
+    const $activeRoomName = document.getElementById('activeRoomName');
+
+    function el(tag, attrs={}, children=[]){
+      const n = document.createElement(tag);
+      for(const [k,v] of Object.entries(attrs)){
+        if (k === 'class') n.className = v;
+        else if (k === 'html') n.innerHTML = v;
+        else n.setAttribute(k, v);
+      }
+      for(const c of children) n.appendChild(c);
+      return n;
     }
-  } catch(err){
-    setDot(key,"bad");
-    log("attachHlsTo error: "+(err?.message||err));
-  }
-}
 
-/** بداية التشغيل لكل الكاميرات **/
-async function startAll(){
-  $("#baseHost").textContent = window.HLS_BASE;
-  for(const s of STREAMS){
-    const v = document.getElementById("video-"+s.key);
-    const full = window.HLS_BASE + s.path;
-    await attachHlsTo(v, full, s.key);
-  }
-}
-startAll();
+    function buildRooms(){
+      $rooms.innerHTML = '';
+      ROOMS.forEach((r, idx)=>{
+        const dot = el('i', {class:'dot', id:`roomDot-${r.id}`});
+        const pill = el('span', {class:'pill'}, [dot, document.createTextNode(' متصل')]);
+        const hd = el('div', {class:'room-hd'}, [
+          el('span', {class:'name', html:r.name}), pill
+        ]);
+        const body = el('div', {class:'room-bd'});
+        CAMERA_KEYS.forEach(key=>{
+          const btn = el('div', {class:'cam-btn', 'data-room':r.id, 'data-key':key}, [
+            el('span', {html:key}),
+            el('i', {class:'dot', id:`dot-${r.id}-${key}`})
+          ]);
+          btn.addEventListener('click', ()=> switchRoom(r.id, key));
+          body.appendChild(btn);
+        });
+        const room = el('div', {class:'room'}, [hd, body]);
+        hd.addEventListener('click', ()=> setActiveRoom(r.id));
+        $rooms.appendChild(room);
 
-/** تبديل الرئيسية مع أخرى **/
-function swapToMain(key){
-  if(key==="main") return;
-  // تبادل الـ src بين الفيديوهين عبر إعادة التهيئة
-  const main = STREAMS.find(s=>s.key==="main");
-  const other = STREAMS.find(s=>s.key===key);
-  if(!main || !other) return;
-
-  // دمّر اللاعبين أولاً
-  for(const k of ["main", key]){
-    const p = hlsPlayers.get(k);
-    if(p?.hls){ try{p.hls.destroy();}catch(_){} }
-  }
-
-  // بدّل المسارات المنطقية
-  const tmpPath = main.path; main.path = other.path; other.path = tmpPath;
-
-  // حدّث الملصقات
-  $(`.label`).textContent = "MAIN - " + main.path.split("/")[2];
-
-  // أعِد التشغيل
-  attachHlsTo($("#video-main"), window.HLS_BASE+main.path, "main");
-  attachHlsTo($("#video-"+key), window.HLS_BASE+other.path, key);
-}
-
-/** المزامنة **/
-function syncOnce(){
-  const mainP = hlsPlayers.get("main");
-  if(!mainP?.video) return;
-  const t = mainP.video.currentTime;
-  for(const s of STREAMS){
-    if(s.key==="main") continue;
-    const p = hlsPlayers.get(s.key);
-    if(!p?.video) continue;
-    try{
-      const drift = Math.abs(p.video.currentTime - t);
-      if(drift > 0.6){ p.video.currentTime = t; }
-    }catch(_){}
-  }
-}
-let syncTimer = null;
-$("#syncNowBtn").addEventListener("click", syncOnce);
-$("#autoSyncToggle").addEventListener("change", (e)=>{
-  if(e.target.checked){
-    syncTimer = setInterval(syncOnce, 1200);
-  }else{
-    clearInterval(syncTimer); syncTimer = null;
-  }
-});
-$("#reloadBtn").addEventListener("click", ()=> location.reload());
-
-/** Ping حالات البث (GET بدلاً من HEAD) لإظهار النقطة الخضراء في الواجهة **/
-async function pingStream(key, path){
-  try{
-    const url = `${window.HLS_BASE}${path}?ping=${Date.now()}`;
-    const res = await fetch(url, { method:"GET", cache:"no-store", mode:"cors" });
-    if(!res.ok){ setDot(key,"bad"); return; }
-    const text = await res.text();
-    if(text && text.includes("#EXTM3U")) setDot(key,"ok"); else setDot(key,"warn");
-  }catch(_){ setDot(key,"bad"); }
-}
-async function pingAll(){
-  for(const s of STREAMS){ pingStream(s.key, s.path); }
-}
-setInterval(pingAll, 5000);
-pingAll();
-
-/** —— الغرف (LiveKit) —— **/
-let currentRoom = null; // LiveKit Room instance
-async function ensureLiveKit(){
-  if(!window.LivekitClient && !window.livekit){
-    throw new Error("LiveKit library did not load");
-  }
-}
-function renderRooms(list){
-  const box = $("#roomsBox");
-  box.innerHTML = "";
-  list.forEach((r,i)=>{
-    const row = mk("div","room");
-    const meta = mk("div","meta");
-    const title = mk("div"); title.textContent = r.name || `room-${i+1}`;
-    const small = mk("small"); small.textContent = (r.numParticipants!=null? `عدد المشاركين: ${r.numParticipants}` : "—");
-    meta.appendChild(title); meta.appendChild(small);
-
-    const right = mk("div");
-    const st = mk("span","status "+(r.isActive?"ok":"bad")); right.appendChild(st);
-    const btn = mk("button","btn"); btn.textContent = "انضمام";
-    btn.addEventListener("click", ()=>joinRoom(r.name || `room-${i+1}`));
-    right.appendChild(btn);
-
-    row.appendChild(meta); row.appendChild(right);
-    box.appendChild(row);
-  });
-}
-async function fetchRooms(){
-  try{
-    await ensureLiveKit();
-  }catch(e){
-    $("#roomStatus").innerHTML = `<span class="error">LiveKit لم تُحمَّل: ${e.message}</span>`;
-    return renderRooms(Array.from({length:10},(_,i)=>({name:`room-${i+1}`, isActive:false})));
-  }
-  try{
-    const res = await fetch(`${LIVEKIT_API}/rooms`, {cache:"no-store"});
-    if(res.ok){
-      const data = await res.json();
-      // نتوقع شكلاً: [{name, numParticipants, isActive}, ...] وإلا نحول حسب الموجود
-      const rooms = Array.isArray(data) ? data.map(x=>({
-        name: x.name || x.room || x.id || "room",
-        numParticipants: x.numParticipants ?? x.num_participants ?? null,
-        isActive: x.isActive ?? (x.numParticipants>0)
-      })) : [];
-      // في حال خالٍ أو غير متوقع، وفر 10 غرف افتراضية
-      const list = rooms.length>0 ? rooms : Array.from({length:10},(_,i)=>({name:`room-${i+1}`, isActive:false}));
-      renderRooms(list);
-      $("#roomStatus").textContent = "تم تحديث الغرف.";
-    }else{
-      $("#roomStatus").innerHTML = `<span class="error">فشل جلب الغرف (${res.status})</span>`;
-      renderRooms(Array.from({length:10},(_,i)=>({name:`room-${i+1}`, isActive:false})));
+        if (idx === 0) setActiveRoom(r.id);
+      });
     }
-  }catch(err){
-    $("#roomStatus").innerHTML = `<span class="error">خطأ الاتصال بالغرف: ${err.message}</span>`;
-    renderRooms(Array.from({length:10},(_,i)=>({name:`room-${i+1}`, isActive:false})));
-  }
-}
-async function joinRoom(roomName){
-  try{
-    await ensureLiveKit();
-    $("#roomStatus").textContent = `يتم الانضمام إلى ${roomName}...`;
-    // احصل على معلومات الخادم والرمز (حسب API لديك)
-    // نتوقع endpoint يعيد {url, token}
-    const who = encodeURIComponent("browser-"+Math.random().toString(36).slice(2,8));
-    const res = await fetch(`${LIVEKIT_API}/token?room=${encodeURIComponent(roomName)}&identity=${who}`, {cache:"no-store"});
-    if(!res.ok){ throw new Error(`token API ${res.status}`); }
-    const { url, token } = await res.json();
-    if(!url || !token) throw new Error("رد غير صالح من token API");
-    const { Room, RoomEvent, createLocalTracks } = window.livekit || window.LivekitClient;
 
-    // أنشئ الغرفة واتصل
-    const room = new Room();
-    currentRoom = room;
-    $("#leaveRoomBtn").disabled = false;
+    function buildGrid(){
+      $grid.innerHTML = '';
+      CAMERA_KEYS.forEach(key=>{
+        const card = el('div', {class:'card'});
+        card.appendChild(el('h4', {html:key}));
+        const v = el('video', {playsinline:'', controls:'', muted:'', 'data-key':key});
+        card.appendChild(v);
+        $grid.appendChild(card);
+        state.videoByKey[key] = v;
+      });
+    }
 
-    room.on(RoomEvent.Connected, ()=> $("#roomStatus").textContent = `متصل بالغرفة: ${roomName}`);
-    room.on(RoomEvent.Disconnected, ()=> $("#roomStatus").textContent = `تمت مغادرة الغرفة: ${roomName}`);
-    room.on(RoomEvent.ParticipantConnected, p => log(`انضم: ${p.identity}`));
-    room.on(RoomEvent.ParticipantDisconnected, p => log(`غادر: ${p.identity}`));
+    function setActiveRoom(roomId){
+      state.activeRoom = roomId;
+      $activeRoomName.textContent = ROOMS.find(x=>x.id===roomId)?.name || roomId;
+      // إعادة ربط كل الفيديوهات للغرفة النشطة
+      CAMERA_KEYS.forEach(key=>{
+        attachHlsToKey(key);
+      });
+    }
 
-    await room.connect(url, token);
+    function switchRoom(roomId, key){
+      setActiveRoom(roomId);
+      // تركيز على بطاقة المفتاح المطلوب
+      const card = state.videoByKey[key]?.closest('.card');
+      if (card) card.scrollIntoView({behavior:'smooth', block:'center', inline:'nearest'});
+    }
+  </script>
 
-    // إن أردت نشر الصوت/الفيديو المحلي (اختياري):
-    // const tracks = await createLocalTracks({ audio: true, video: true });
-    // await room.localParticipant.publishTracks(tracks);
+  <!-- ====== أدوات HLS + Ping (HEAD→GET) وفولباك CDN للمكتبات ====== -->
+  <script>
+    // محمّل سكربت بسيط
+    function loadScript(src, cb){
+      const s = document.createElement('script');
+      s.src = src; s.defer = true; s.async = true; s.crossOrigin = 'anonymous';
+      s.onload = ()=> cb && cb(null); s.onerror = ()=> cb && cb(new Error('load ' + src));
+      document.head.appendChild(s);
+    }
 
-  }catch(err){
-    $("#roomStatus").innerHTML = `<span class="error">تعذر الانضمام: ${err.message}</span>`;
-  }
-}
-$("#leaveRoomBtn").addEventListener("click", ()=>{
-  try{
-    if(currentRoom){ currentRoom.disconnect(); }
-  }catch(_){}
-  currentRoom = null;
-  $("#leaveRoomBtn").disabled = true;
-  $("#roomStatus").textContent = "تمت المغادرة.";
-});
-$("#refreshRoomsBtn").addEventListener("click", fetchRooms);
+    // فولباك لـ hls.js في حال الملف المحلي غير متاح
+    (function ensureHls(){
+      if (!window.Hls) {
+        loadScript('https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js', function(){});
+      }
+    })();
 
-// تحميل أولي لقائمة الغرف
-fetchRooms();
+    // Ping عبر GET بدلاً من HEAD + فحص EXTM3U
+    async function pingOnce(pathOrUrl){
+      try{
+        const full = (pathOrUrl.startsWith('http') ? pathOrUrl : (HLS_BASE + pathOrUrl)) + '?ping=' + Date.now();
+        const res = await fetch(full, { method:'GET', cache:'no-store' });
+        if(!res.ok) return false;
+        const text = await res.text();
+        return text.includes('#EXTM3U');
+      }catch(e){
+        return false;
+      }
+    }
 
-/** تشخيص بسيط لـ CSP في الواجهة **/
-(function checkCSP(){
-  const ok = [location.origin.includes("http") ? "self" : "", "workers.dev", "trycloudflare.com", "livekit.cloud"].filter(Boolean).join(" • ");
-  $("#cspNote").textContent = "CSP OK: "+ok;
-})();
-</script>
+    // إرفاق HLS إلى فيديو بناء على المفتاح
+    function attachHlsToKey(key){
+      const videoEl = state.videoByKey[key];
+      if (!videoEl) return;
+
+      // دمّر أي نسخة قديمة
+      try{ state.hlsByKey[key]?.destroy?.(); }catch(_){}
+      state.hlsByKey[key] = null;
+
+      const url = HLS_BASE + toPath(key);
+
+      if (window.Hls && window.Hls.isSupported()){
+        const hls = new Hls({ enableWorker:true, lowLatencyMode:true });
+        state.hlsByKey[key] = hls;
+        hls.loadSource(url);
+        hls.attachMedia(videoEl);
+        hls.on(Hls.Events.MANIFEST_PARSED, async ()=>{
+          try{ await videoEl.play(); }catch(_){}
+        });
+        hls.on(Hls.Events.ERROR, (e,d)=>{
+          if (d?.fatal){
+            try{ hls.destroy(); }catch(_){}
+            state.hlsByKey[key] = null;
+          }
+        });
+      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+        videoEl.src = url;
+        videoEl.addEventListener('loadedmetadata', ()=> videoEl.play().catch(()=>{}), {once:true});
+      }
+    }
+
+    // مزامنة كل الفيديوهات إلى طرف البث الحي
+    function syncAll(){
+      CAMERA_KEYS.forEach(key=>{
+        const hls = state.hlsByKey[key];
+        const v = state.videoByKey[key];
+        if (!v) return;
+        try{
+          if (hls && typeof hls.liveSyncPosition === 'number'){
+            v.currentTime = hls.liveSyncPosition;
+          } else if (v.buffered && v.buffered.length){
+            const end = v.buffered.end(v.buffered.length - 1);
+            v.currentTime = Math.max(0, end - 0.5);
+          }
+          // تأكد التشغيل
+          v.play().catch(()=>{});
+        }catch(_){}
+      });
+    }
+
+    // فحص الحالة (نقطة خضراء) لكل كاميرا
+    async function refreshDots(){
+      const roomId = state.activeRoom;
+      // dot للغرفة (يُظهر حالة main كمؤشر عام)
+      const okMain = await pingOnce(toPath('live'));
+      setDot(`roomDot-${roomId}`, okMain ? 'ok' : 'err');
+      setDot('mainDot', okMain ? 'ok' : 'err');
+
+      // باقي الكاميرات
+      for (const key of CAMERA_KEYS){
+        const ok = await pingOnce(toPath(key));
+        setDot(`dot-${roomId}-${key}`, ok ? 'ok' : 'err');
+      }
+    }
+
+    function setDot(id, st){
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('ok','warn','err');
+      if (st) el.classList.add(st);
+    }
+  </script>
+
+  <!-- ====== LiveKit: ضمان التحميل (محلي ثم CDN) + الانضمام للغرفة ====== -->
+  <script>
+    function ensureLiveKit(cb){
+      if (window.livekit || window.LivekitClient) return cb && cb(null);
+      // جرّب المحلي
+      loadScript('/vendor/livekit-client.umd.min.js', function(){
+        if (window.livekit || window.LivekitClient) return cb && cb(null);
+        // فولباك CDN
+        loadScript('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js', function(err){
+          cb && cb(null);
+        });
+      });
+    }
+
+    async function joinRoomWithToken(roomName, identity){
+      return new Promise((resolve,reject)=>{
+        ensureLiveKit(async function(){
+          try{
+            const who = identity || ('browser-' + Math.random().toString(36).slice(2,8));
+            const r = await fetch(`${LIVEKIT_API}/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(who)}`, {cache:'no-store'});
+            if (!r.ok) throw new Error('token API '+r.status);
+            const { url, token } = await r.json();
+            const LK = window.livekit || window.LivekitClient;
+            const room = new LK.Room();
+            await room.connect(url, token);
+            resolve(room);
+          }catch(err){ reject(err); }
+        });
+      });
+    }
+
+    async function connectActiveRoom(){
+      try{
+        document.getElementById('lkDot') && setDot('lkDot', 'warn');
+        const room = await joinRoomWithToken(state.activeRoom);
+        state.roomObj = room;
+        setDot('lkDot', 'ok');
+      }catch(_){
+        setDot('lkDot', 'err');
+      }
+    }
+  </script>
+
+  <!-- ====== ربط الأزرار + الإقلاع ====== -->
+  <script>
+    document.getElementById('btnPlayAll').addEventListener('click', ()=>{
+      CAMERA_KEYS.forEach(k=> state.videoByKey[k]?.play?.().catch(()=>{}));
+    });
+    document.getElementById('btnPauseAll').addEventListener('click', ()=>{
+      CAMERA_KEYS.forEach(k=> state.videoByKey[k]?.pause?.());
+    });
+    document.getElementById('btnSync').addEventListener('click', syncAll);
+
+    // بناء الواجهة وربط البث
+    buildRooms();
+    buildGrid();
+    setActiveRoom(ROOMS[0].id);
+
+    // أول فحص للحالة ثم كل 8 ثوانٍ
+    refreshDots();
+    setInterval(refreshDots, 8000);
+
+    // حاول الاتصال بالغرفة النشطة (اختياري)
+    connectActiveRoom();
+  </script>
 </body>
 </html>

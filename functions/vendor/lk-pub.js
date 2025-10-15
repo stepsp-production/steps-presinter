@@ -1,5 +1,4 @@
-// lk-pub.js
-// منطق الاقتران + الانضمام + النشر باستخدام LiveKit UMD (window.livekitClient)
+// lk-pub.js — الاقتران + الانضمام + النشر بـ LiveKit (UMD)
 
 (function(){
   const { Room, createLocalTracks, RoomEvent, setLogLevel, LogLevel } = window.livekitClient || {};
@@ -29,7 +28,6 @@
   LiveKitPublisher.prototype._set = function(txt){ if (this.statusEl) this.statusEl.textContent = txt; };
 
   LiveKitPublisher.prototype.pairDevices = async function(){
-    // طلب الصلاحية وإنشاء مسارات محلية لكن لا ننشرها بعد
     try {
       this.localTracks = await createLocalTracks({
         audio: { echoCancellation: true, noiseSuppression: true },
@@ -47,11 +45,9 @@
     if (!room) throw errUser('لم يتم اختيار الغرفة.');
     if (!identity) throw errUser('مطلوب اسم الهوية.');
 
-    // اجلب التوكن وعنوان السيرفر
     const { url, token } = await fetchToken(this.tokenApi, room, identity);
     if (!url || !token) throw errUser('الاستجابة لا تحتوي url/token.');
 
-    // أنشئ الغرفة وانضم
     this.room = new Room({
       adaptiveStream: true,
       dynacast: true,
@@ -63,7 +59,6 @@
     this.room.on(RoomEvent.Connected,   ()=> this._set('LiveKit: متصل'));
     await this.room.connect(url, token);
 
-    // انشر المسارات
     for (const t of this.localTracks) {
       await this.room.localParticipant.publishTrack(t);
     }

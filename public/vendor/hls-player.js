@@ -1,12 +1,13 @@
-// hls-player.js
-// غلاف صغير يربط hls.js مع <video> ويعرض حالة مختصرة
+// hls-player.js — غلاف بسيط لـ hls.js
 (function(){
   function HlsPlayer(videoEl, stateEl){
     this.video = videoEl;
     this.stateEl = stateEl;
     this.hls = null;
   }
-  HlsPlayer.prototype._set = function (txt){ if (this.stateEl) this.stateEl.textContent = 'HLS: ' + txt; };
+  HlsPlayer.prototype._set = function (txt){
+    if (this.stateEl) this.stateEl.textContent = 'HLS: ' + txt;
+  };
   HlsPlayer.prototype.attach = function (manifestUrl){
     const v = this.video;
     const self = this;
@@ -37,6 +38,5 @@
       self._set('unsupported');
     }
   };
-
   window.HlsPlayer = HlsPlayer;
 })();

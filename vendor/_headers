@@ -1,5 +1,0 @@
-/*
-  Content Security Policy for HLS + LiveKit + CDN fallbacks
-*/
-*
-  Content-Security-Policy: default-src 'self'; connect-src 'self' https://hls-proxy.it-f2c.workers.dev https://steps-livekit-api.onrender.com https://*.trycloudflare.com wss://*.livekit.cloud; media-src 'self' https://hls-proxy.it-f2c.workers.dev blob: data:; img-src 'self' data: blob:; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; style-src 'self' 'unsafe-inline'

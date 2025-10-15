@@ -3,8 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- سياسة أمان تسمح بالاتصالات المطلوبة، وتمنع inline scripts -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src  'self';
@@ -19,63 +17,40 @@
                  wss://*.livekit.cloud;
     worker-src  'self' blob:;
   ">
-
   <title>Steps MultiCam</title>
   <meta name="color-scheme" content="dark light" />
   <style>
-    :root{
-      --bg:#0b0f14;--card:#0f151c;--muted:#a9b3be;--ok:#1ccf63;--err:#ff6161;
-      --btn:#1f2937;--btn2:#0e7490;--accent:#22c55e;
-    }
-    html,body{height:100%}
-    body{margin:0;background:var(--bg);color:#e5eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+    :root{--bg:#0b0f14;--card:#0f151c;--muted:#a9b3be;--ok:#1ccf63;--err:#ff6161;--btn:#1f2937;--btn2:#0e7490}
+    html,body{height:100%} body{margin:0;background:var(--bg);color:#e5eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto}
     .app{max-width:1280px;margin:0 auto;padding:16px}
     h1{font-size:22px;margin:0 0 12px}
-
-    /* الأزرار */
     .btn{background:var(--btn);border:1px solid #223045;color:#e5eef7;border-radius:12px;padding:11px 16px;cursor:pointer;font-weight:600}
     .btn.primary{background:var(--btn2);border-color:#155e75}
     .btn.ok{background:#166534;border-color:#14532d}
     .btn.warn{background:#7f1d1d;border-color:#7f1d1d}
     .btn:disabled{opacity:.55;cursor:not-allowed}
-
     .pill{padding:6px 10px;border-radius:999px;background:#0b1220;border:1px solid #162032;font-size:12px}
     .mono{font-family:ui-monospace,Consolas,monospace}
-
-    /* الإطار المتحكم الذي يختفي */
     .chrome{position:fixed;inset-inline:0;top:0;z-index:10;transition:opacity .25s, transform .25s}
     .chrome.hidden{opacity:0;pointer-events:none;transform:translateY(-8px)}
     .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:linear-gradient(180deg,#0b0f14e6,#0b0f1400);padding:12px 16px}
-
     .field{display:flex;gap:8px;align-items:center}
     .field input,.field select{background:#0b1220;border:1px solid #1c2736;color:#cfe3ff;border-radius:12px;padding:10px;font-weight:600}
-
-    /* الشبكة */
-    .wrap{padding-top:70px} /* مساحة للـchrome */
-    .grid{display:grid;grid-template-columns:280px 1fr;gap:12px}
-    .panel{background:var(--card);border:1px solid #162032;border-radius:16px;padding:12px}
-
-    /* قائمة المصادر الجانبية (تختفي مع الشريط) */
+    .wrap{padding-top:70px}
+    .panel{background:#0f151c;border:1px solid #162032;border-radius:16px;padding:12px}
     .sources{position:fixed;inset-inline-start:16px;top:84px;width:248px;z-index:9;transition:opacity .25s, transform .25s}
     .chrome.hidden + .wrap .sources{opacity:0;transform:translateY(-8px);pointer-events:none}
     .sources .btn{width:100%;justify-content:space-between;display:flex;align-items:center;font-weight:700}
     .sources .btn + .btn{margin-top:8px}
-
-    /* بطاقات الفيديو */
     .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-inline-start:280px}
     .card{background:#0c131c;border:1px solid #162032;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
     .card header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #162032}
     .name{display:flex;align-items:center;gap:8px}
     .dot{width:9px;height:9px;border-radius:50%;background:#586273}
-    .dot.live{background:var(--ok)}
+    .dot.live{background:#1ccf63}
     .card video{width:100%;aspect-ratio:16/9;background:#000;display:block}
     .card footer{padding:8px 12px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #162032}
-
-    @media (max-width:1024px){
-      .grid{grid-template-columns:1fr}
-      .cards{margin-inline-start:0}
-      .sources{position:static;width:auto}
-    }
+    @media (max-width:1024px){.cards{margin-inline-start:0}.sources{position:static;width:auto}}
   </style>
 </head>
 <body>
@@ -85,16 +60,11 @@
       <div class="field">
         <label>الغرفة:</label>
         <select id="roomSel">
-          <option value="room-1">room-1</option>
-          <option value="room-2">room-2</option>
-          <option value="room-3">room-3</option>
-          <option value="room-4">room-4</option>
-          <option value="room-5">room-5</option>
-          <option value="room-6">room-6</option>
-          <option value="room-7">room-7</option>
-          <option value="room-8">room-8</option>
-          <option value="room-9">room-9</option>
-          <option value="room-10">room-10</option>
+          <option value="room-1">room-1</option><option value="room-2">room-2</option>
+          <option value="room-3">room-3</option><option value="room-4">room-4</option>
+          <option value="room-5">room-5</option><option value="room-6">room-6</option>
+          <option value="room-7">room-7</option><option value="room-8">room-8</option>
+          <option value="room-9">room-9</option><option value="room-10">room-10</option>
         </select>
       </div>
       <div class="field">
@@ -109,7 +79,6 @@
   </div>
 
   <div class="wrap">
-    <!-- قائمة المصادر (تختفي مع الشريط) -->
     <aside class="panel sources">
       <div class="pill mono" style="margin-bottom:8px">SOURCES</div>
       <button class="btn" data-src="live">MAIN • <small class="mono">/hls/live/playlist.m3u8</small></button>
@@ -121,18 +90,14 @@
       <button class="btn" data-src="live7">CAM 7 • <small class="mono">/hls/live7/playlist.m3u8</small></button>
       <button class="btn" data-src="lastone">SINEFLEX • <small class="mono">/hls/lastone/playlist.m3u8</small></button>
     </aside>
-
     <main class="cards" id="cards"></main>
   </div>
 
-  <!-- الطرف الثالث (ملفات محلية داخل مجلد vendor) -->
-  <script src="./vendor/hls.min.js"></script>
-  <script src="./vendor/livekit-client.umd.min.js"></script>
+  <!-- الطرف الثالث -->
+  <script src="./vendor/hls.min.js" defer></script>
+  <script src="./vendor/livekit-client.umd.min.js" defer></script>
 
-  <!-- ملفاتنا (تأكد من وجودها بنفس المسار لتفادي 404) -->
-  <script src="./vendor/utils.js"></script>
-  <script src="./vendor/hls-player.js"></script>
-  <script src="./vendor/lk-pub.js"></script>
-  <script src="./app.js"></script>
+  <!-- ملف التطبيق الوحيد -->
+  <script src="./app.js" defer></script>
 </body>
 </html>

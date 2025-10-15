@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Content-Security-Policy تسمح باتصالات HLS Proxy و LiveKit و API -->
+  <!-- سياسة أمان تسمح بالاتصالات المطلوبة، وتمنع inline scripts -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src  'self';
@@ -23,197 +23,116 @@
   <title>Steps MultiCam</title>
   <meta name="color-scheme" content="dark light" />
   <style>
-    :root{--bg:#0b0f14;--card:#0f151c;--muted:#a9b3be;--ok:#1ccf63;--err:#ff6161;--btn:#1f2937;--btn2:#0e7490;}
-    html,body{height:100%;}
-    body{margin:0;background:var(--bg);color:#e5eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;}
-    .app{max-width:1200px;margin:0 auto;padding:16px;}
-    h1{font-size:20px;margin:0 0 12px;}
-    .bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
-    .btn{background:var(--btn);border:1px solid #1f2937;color:#e5eef7;border-radius:10px;padding:10px 14px;cursor:pointer}
+    :root{
+      --bg:#0b0f14;--card:#0f151c;--muted:#a9b3be;--ok:#1ccf63;--err:#ff6161;
+      --btn:#1f2937;--btn2:#0e7490;--accent:#22c55e;
+    }
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:#e5eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu}
+    .app{max-width:1280px;margin:0 auto;padding:16px}
+    h1{font-size:22px;margin:0 0 12px}
+
+    /* الأزرار */
+    .btn{background:var(--btn);border:1px solid #223045;color:#e5eef7;border-radius:12px;padding:11px 16px;cursor:pointer;font-weight:600}
     .btn.primary{background:var(--btn2);border-color:#155e75}
-    .btn.ok{background:#14532d;border-color:#14532d}
+    .btn.ok{background:#166534;border-color:#14532d}
     .btn.warn{background:#7f1d1d;border-color:#7f1d1d}
-    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+
     .pill{padding:6px 10px;border-radius:999px;background:#0b1220;border:1px solid #162032;font-size:12px}
-    .grid{display:grid;grid-template-columns:260px 1fr;gap:12px}
-    .panel{background:var(--card);border:1px solid #162032;border-radius:14px;padding:12px}
-    .sources .btn{width:100%;justify-content:space-between;display:flex;align-items:center}
+    .mono{font-family:ui-monospace,Consolas,monospace}
+
+    /* الإطار المتحكم الذي يختفي */
+    .chrome{position:fixed;inset-inline:0;top:0;z-index:10;transition:opacity .25s, transform .25s}
+    .chrome.hidden{opacity:0;pointer-events:none;transform:translateY(-8px)}
+    .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:linear-gradient(180deg,#0b0f14e6,#0b0f1400);padding:12px 16px}
+
+    .field{display:flex;gap:8px;align-items:center}
+    .field input,.field select{background:#0b1220;border:1px solid #1c2736;color:#cfe3ff;border-radius:12px;padding:10px;font-weight:600}
+
+    /* الشبكة */
+    .wrap{padding-top:70px} /* مساحة للـchrome */
+    .grid{display:grid;grid-template-columns:280px 1fr;gap:12px}
+    .panel{background:var(--card);border:1px solid #162032;border-radius:16px;padding:12px}
+
+    /* قائمة المصادر الجانبية (تختفي مع الشريط) */
+    .sources{position:fixed;inset-inline-start:16px;top:84px;width:248px;z-index:9;transition:opacity .25s, transform .25s}
+    .chrome.hidden + .wrap .sources{opacity:0;transform:translateY(-8px);pointer-events:none}
+    .sources .btn{width:100%;justify-content:space-between;display:flex;align-items:center;font-weight:700}
     .sources .btn + .btn{margin-top:8px}
-    .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    .card{background:#0c131c;border:1px solid #162032;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+
+    /* بطاقات الفيديو */
+    .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-inline-start:280px}
+    .card{background:#0c131c;border:1px solid #162032;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
     .card header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #162032}
     .name{display:flex;align-items:center;gap:8px}
     .dot{width:9px;height:9px;border-radius:50%;background:#586273}
     .dot.live{background:var(--ok)}
     .card video{width:100%;aspect-ratio:16/9;background:#000;display:block}
     .card footer{padding:8px 12px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #162032}
-    .field{display:flex;gap:6px;align-items:center}
-    .field input,.field select{background:#0b1220;border:1px solid #1c2736;color:#cfe3ff;border-radius:10px;padding:8px}
-    .status{display:flex;align-items:center;gap:8px}
-    .mono{font-family:ui-monospace,Consolas,monospace}
-    small{color:var(--muted)}
+
+    @media (max-width:1024px){
+      .grid{grid-template-columns:1fr}
+      .cards{margin-inline-start:0}
+      .sources{position:static;width:auto}
+    }
   </style>
 </head>
 <body>
-  <div class="app">
-    <h1>لوحة البث المتعدد</h1>
-
-    <div class="panel bar">
+  <div class="chrome" id="chrome">
+    <div class="bar">
+      <h1 style="margin-inline-end:8px">لوحة البث المتعدد</h1>
       <div class="field">
-        <label>الاستوديو:</label>
+        <label>الغرفة:</label>
         <select id="roomSel">
-          <option value="room-1">studio-1</option>
-          <option value="room-2">studio-2</option>
-          <option value="room-3">studio-3</option>
+          <option value="room-1">room-1</option>
+          <option value="room-2">room-2</option>
+          <option value="room-3">room-3</option>
+          <option value="room-4">room-4</option>
+          <option value="room-5">room-5</option>
+          <option value="room-6">room-6</option>
+          <option value="room-7">room-7</option>
+          <option value="room-8">room-8</option>
+          <option value="room-9">room-9</option>
+          <option value="room-10">room-10</option>
         </select>
       </div>
       <div class="field">
-        <label>اسم العرض:</label>
-        <input id="displayName" placeholder="اسم المتحدّث" />
+        <label>الهوية/الاسم:</label>
+        <input id="displayName" placeholder="اسم المتحدث" />
       </div>
       <button id="pairBtn" class="btn">اقتران الكاميرا/المايك</button>
-      <button id="publishBtn" class="btn ok" disabled>تشغيل</button>
+      <button id="publishBtn" class="btn ok" disabled>تشغيل (نشر)</button>
       <button id="stopBtn" class="btn warn" disabled>إيقاف</button>
-      <span class="pill status">حالة : <span id="lkStatus">LiveKit: غير متصل</span></span>
+      <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
     </div>
-
-    <div class="grid">
-      <!-- القائمة الجانبية / مصادر -->
-      <div class="panel sources">
-        <div class="pill mono">SOURCES</div>
-        <button class="btn" data-src="live">MAIN • <small class="mono">/hls/live/playlist.m3u8</small></button>
-        <button class="btn" data-src="live2">CAM 2 • <small class="mono">/hls/live2/playlist.m3u8</small></button>
-        <button class="btn" data-src="live3">CAM 3 • <small class="mono">/hls/live3/playlist.m3u8</small></button>
-        <button class="btn" data-src="live4">CAM 4 • <small class="mono">/hls/live4/playlist.m3u8</small></button>
-        <button class="btn" data-src="live5">CAM 5 • <small class="mono">/hls/live5/playlist.m3u8</small></button>
-        <button class="btn" data-src="live6">CAM 6 • <small class="mono">/hls/live6/playlist.m3u8</small></button>
-        <button class="btn" data-src="live7">CAM 7 • <small class="mono">/hls/live7/playlist.m3u8</small></button>
-        <button class="btn" data-src="lastone">SINEFLEX • <small class="mono">/hls/lastone/playlist.m3u8</small></button>
-      </div>
-
-      <!-- البطاقات -->
-      <div class="cards" id="cards">
-        <!-- يتم توليدها بالـ JS -->
-      </div>
-    </div>
-
-    <p><small>تلميح: اضغط F لملء الشاشة / لإظهار/إخفاء الواجهة.</small></p>
   </div>
 
-  <!-- مكتبات الطرف الثالث (ضع ملفاتك المحلية داخل /vendor/) -->
-  <script src="/vendor/hls.min.js"></script>
-  <script src="/vendor/livekit-client.umd.min.js"></script>
+  <div class="wrap">
+    <!-- قائمة المصادر (تختفي مع الشريط) -->
+    <aside class="panel sources">
+      <div class="pill mono" style="margin-bottom:8px">SOURCES</div>
+      <button class="btn" data-src="live">MAIN • <small class="mono">/hls/live/playlist.m3u8</small></button>
+      <button class="btn" data-src="live2">CAM 2 • <small class="mono">/hls/live2/playlist.m3u8</small></button>
+      <button class="btn" data-src="live3">CAM 3 • <small class="mono">/hls/live3/playlist.m3u8</small></button>
+      <button class="btn" data-src="live4">CAM 4 • <small class="mono">/hls/live4/playlist.m3u8</small></button>
+      <button class="btn" data-src="live5">CAM 5 • <small class="mono">/hls/live5/playlist.m3u8</small></button>
+      <button class="btn" data-src="live6">CAM 6 • <small class="mono">/hls/live6/playlist.m3u8</small></button>
+      <button class="btn" data-src="live7">CAM 7 • <small class="mono">/hls/live7/playlist.m3u8</small></button>
+      <button class="btn" data-src="lastone">SINEFLEX • <small class="mono">/hls/lastone/playlist.m3u8</small></button>
+    </aside>
 
-  <!-- ملفاتنا -->
-  <script src="/vendor/utils.js"></script>
-  <script src="/vendor/hls-player.js"></script>
-  <script src="/vendor/lk-pub.js"></script>
+    <main class="cards" id="cards"></main>
+  </div>
 
-  <script>
-    // ---------- إعدادات عامة ----------
-    const HLS_PROXY_BASE = 'https://hls-proxy.it-f2c.workers.dev'; // عبر التانل/الوركر
-    const LK_TOKEN_API   = 'https://steps-livekit-api.onrender.com/token'; // API الذي أنشأناه
+  <!-- الطرف الثالث (ملفات محلية داخل مجلد vendor) -->
+  <script src="./vendor/hls.min.js"></script>
+  <script src="./vendor/livekit-client.umd.min.js"></script>
 
-    const SOURCES = [
-      { key: 'live',    title: 'Main (live)'  },
-      { key: 'live2',   title: 'Cam 2'        },
-      { key: 'live3',   title: 'Cam 3'        },
-      { key: 'live4',   title: 'Cam 4'        },
-      { key: 'live5',   title: 'Cam 5'        },
-      { key: 'live6',   title: 'Cam 6'        },
-      { key: 'live7',   title: 'Cam 7'        },
-      { key: 'lastone', title: 'Sineflex'     },
-    ];
-
-    const cardsEl = document.getElementById('cards');
-    const lkStatusEl = document.getElementById('lkStatus');
-    const roomSel = document.getElementById('roomSel');
-    const displayName = document.getElementById('displayName');
-    const pairBtn = document.getElementById('pairBtn');
-    const publishBtn = document.getElementById('publishBtn');
-    const stopBtn = document.getElementById('stopBtn');
-
-    // ---------- توليد بطاقات الفيديو ----------
-    function makeCard(src) {
-      const id = `card-${src.key}`;
-      const url = `${HLS_PROXY_BASE}/hls/${src.key}/playlist.m3u8`;
-      const el = document.createElement('div');
-      el.className = 'card';
-      el.innerHTML = `
-        <header>
-          <div class="name">
-            <span class="dot live"></span>
-            <strong>${src.title}</strong>
-          </div>
-          <small class="mono">${url}</small>
-        </header>
-        <video id="${id}" playsinline muted controls></video>
-        <footer>
-          <button class="btn" data-act="play">تشغيل</button>
-          <button class="btn" data-act="pause">إيقاف</button>
-          <span class="pill mono" data-role="state">HLS: idle</span>
-        </footer>
-      `;
-      cardsEl.appendChild(el);
-
-      // ربط HLS
-      const video = el.querySelector('video');
-      const state = el.querySelector('[data-role=state]');
-      const hp = new HlsPlayer(video, state);
-      hp.attach(url);
-
-      el.querySelector('[data-act=play]').onclick  = () => video.play();
-      el.querySelector('[data-act=pause]').onclick = () => video.pause();
-
-      return el;
-    }
-
-    SOURCES.forEach(makeCard);
-
-    // ---------- LiveKit (اقتران/نشر/إيقاف) ----------
-    const lk = new LiveKitPublisher({
-      statusEl: lkStatusEl,
-      Livekit: window.livekitClient,
-      tokenApi: LK_TOKEN_API,
-    });
-
-    pairBtn.onclick = async () => {
-      try {
-        await lk.pairDevices();
-        publishBtn.disabled = false;
-        pairBtn.classList.add('primary');
-      } catch (e) {
-        alert('تعذّر الوصول للكاميرا/المايك: ' + e.message);
-      }
-    };
-
-    publishBtn.onclick = async () => {
-      publishBtn.disabled = true;
-      try {
-        await lk.joinAndPublish({
-          room: roomSel.value,
-          identity: displayName.value || ('user-' + crypto.randomUUID().slice(0,8)),
-        });
-        stopBtn.disabled = false;
-        alert('تم النشر بنجاح ✅');
-      } catch (e) {
-        console.error(e);
-        alert('تعذّر نشر الصوت/الفيديو:\n' + (e.userMessage || e.message || e));
-        publishBtn.disabled = false;
-      }
-    };
-
-    stopBtn.onclick = async () => {
-      try { await lk.stop(); } finally {
-        stopBtn.disabled = true;
-        publishBtn.disabled = false;
-      }
-    };
-
-    // UI بسيط لملء الشاشة
-    window.addEventListener('keydown', (e)=>{
-      if (e.key.toLowerCase() === 'f') document.documentElement.requestFullscreen?.();
-    });
-  </script>
+  <!-- ملفاتنا (تأكد من وجودها بنفس المسار لتفادي 404) -->
+  <script src="./vendor/utils.js"></script>
+  <script src="./vendor/hls-player.js"></script>
+  <script src="./vendor/lk-pub.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>

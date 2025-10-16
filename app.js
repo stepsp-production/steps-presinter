@@ -34,13 +34,13 @@ class HlsPlayer {
     const self = this;
 
     if (window.Hls && window.Hls.isSupported()) {
-      const hls = this.hls = new window.Hls({
-        liveSyncDurationCount: 3,
-        backBufferLength: 60,
-        enableWorker: true,
-        lowLatencyMode: true,
-        maxLiveSyncPlaybackRate: 1.5,
-      });
+const hls = this.hls = new window.Hls({
+  liveSyncDurationCount: 3,
+  backBufferLength: 60,
+  enableWorker: false,   // ← مؤقّتًا لتعطّي إنشاء worker من blob
+  lowLatencyMode: true,
+  maxLiveSyncPlaybackRate: 1.5,
+});
       hls.on(window.Hls.Events.ERROR, (_, data)=>{
         console.warn('[HLS] ERROR', data);
         if (data?.fatal) self._set((data.details || 'fatal'));

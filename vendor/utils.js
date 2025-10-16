@@ -1,8 +1,10 @@
 // /vendor/utils.js
-(function () {
-  function qs(sel, root) { return (root || document).querySelector(sel); }
-  function qsa(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
-  function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-  window.$utils = { qs, qsa, wait };
-})();
+  (function(g){
+  'use strict';
+  function qs(s,root){return (root||document).querySelector(s);}
+  function qsa(s,root){return Array.from((root||document).querySelectorAll(s));}
+  function on(el,ev,fn,opt){el && el.addEventListener(ev,fn,opt||false); return ()=>el&&el.removeEventListener(ev,fn,opt||false);}
+  function fmtTime(t){t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;}
+  g.Utils = {qs,qsa,on,fmtTime};
+})(window);

@@ -1,35 +1,6 @@
-/* ========= تكوين مصادر HLS ========= */
-(function initSources(){
-  const BASE = (document.body.getAttribute('data-hls-base') || '').replace(/\/$/,'');
-  const build = (p)=>BASE ? `${BASE}${p}` : p;
+/* لا تستخدم import؛ كل شيء UMD من /vendor */
 
-  window.sources = {
-    main: build("/hls/live/playlist.m3u8"),        // الكاميرا الرئيسية
-    cam1: build("/hls/lastone/playlist.m3u8"),
-    cam2: build("/hls/live2/playlist.m3u8"),
-    cam3: build("/hls/live3/playlist.m3u8"),
-    cam4: build("/hls/live4/playlist.m3u8"),
-    cam5: build("/hls/live5/playlist.m3u8"),
-    cam6: build("/hls/live6/playlist.m3u8"),
-    cam7: build("/hls/live7/playlist.m3u8"),
-  };
-
-  window.channelMap = [
-    {id:'main',label:'MAIN',   src:sources.main},
-    {id:'cam1',label:'Cam1',   src:sources.cam1},
-    {id:'cam2',label:'Cam2',   src:sources.cam2},
-    {id:'cam3',label:'Cam3',   src:sources.cam3},
-    {id:'cam4',label:'Cam4',   src:sources.cam4},
-    {id:'cam5',label:'Cam5',   src:sources.cam5},
-    {id:'cam6',label:'Drone',  src:sources.cam6},
-    {id:'cam7',label:'Sineflex',src:sources.cam7},
-  ];
-})();
-
-/* ========= أدوات ========= */
-const $ = (sel)=>document.querySelector(sel);
-
-/* ========= إعدادات HLS ========= */
+/* ===== إعدادات HLS المحافظة (نفس كودك، مختصر هنا) ===== */
 const SAFETY_EDGE   = 0.80;
 const SHOW_MIN_BUF  = 1.25;
 const STARVED_RESEEK= 0.25;
@@ -77,15 +48,15 @@ function attachHlsWithAvc(video,url){
   const hls=new Hls({...HLS_CFG}); video.__hls=hls; hls.attachMedia(video);
   hls.on(Hls.Events.MEDIA_ATTACHED,()=>{hls.loadSource(url);});
   hls.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{try{
-    const lv=data?.levels||[]; const s=pickBestAvc(lv,480); const mx=highestAvcIndex(lv);
+    const lv=data?.levels||[];const s=pickBestAvc(lv,480);const mx=highestAvcIndex(lv);
     if(s>=0){hls.startLevel=s;hls.currentLevel=s;hls.nextLevel=s;}
     if(mx>=0){hls.autoLevelCapping=mx;}
   }catch(e){}});
   hls.on(Hls.Events.ERROR,(_,err)=>{
-    if(err?.fatal){
-      if(err.type==='mediaError'){ try{hls.recoverMediaError();}catch(e){ try{hls.destroy();}catch(_){} try{attachHlsWithAvc(video,url);}catch(__){} } }
-      else { try{hls.destroy();}catch(e){} try{attachHlsWithAvc(video,url);}catch(_){ } }
-    }
+    // أخطاء parsing TS من البروكسي غير قاتلة غالبًا
+    if(!err?.fatal) return console.debug('[HLS] non-fatal', err?.details || err);
+    if(err.type==='mediaError'){ try{hls.recoverMediaError();}catch(e){ try{hls.destroy();}catch(_){} try{attachHlsWithAvc(video,url);}catch(__){} } }
+    else { try{hls.destroy();}catch(e){} try{attachHlsWithAvc(video,url);}catch(_){ } }
   });
   const starve=()=>{try{
     const m=getSeekableRange(video); if(!m) return;
@@ -111,44 +82,56 @@ function createVideoElement(url){
   return {wrap, video:v};
 }
 
-/* ========= DOM & حالة ========= */
-const root = $('#playerContainer');
-const mainContainer = $('#mainPreview');
-const camContainer  = $('#activeCam');
-const gatePlay = $('#gatePlay');
-const startBtn = $('#startBtn');
-const btnSplit = $('#btnSplit');
-const btnFill  = $('#btnFill');
-const btnSound = $('#btnSound');
-const globalControls = $('#globalControls');
-const gPlay = $('#gPlay'), gBack=$('#gBack'), gFwd=$('#gFwd');
-const scrub = $('#scrub'), timeLabel=$('#timeLabel');
-
-const streamPanel = $('#streamPanel');
-const streamList  = $('#streamList');
-
-const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
+/* ===== DOM & حالة ===== */
+const root=document.getElementById('playerContainer');
+const mainContainer=document.getElementById('mainPreview');
+const camContainer=document.getElementById('activeCam');
+const gatePlay=document.getElementById('gatePlay');
+const startBtn=document.getElementById('startBtn');
+const btnSplit=document.getElementById('btnSplit');
+const btnFill=document.getElementById('btnFill');
+const btnSound=document.getElementById('btnSound');
+const globalControls=document.getElementById('globalControls');
+const gPlay=document.getElementById('gPlay');
+const gBack=document.getElementById('gBack');
+const gFwd=document.getElementById('gFwd');
+const scrub=document.getElementById('scrub');
+const timeLabel=document.getElementById('timeLabel');
+const streamPanel=document.getElementById('streamPanel');
+const streamList=document.getElementById('streamList');
 
 let started=false, splitMode=0, isMainFull=false;
 let mainPlayer, activePlayer, currentCam='cam2';
 let ticker=null, isScrubbing=false;
-const playersCache=new Map();
-
-/* mount & init */
+const playersCache=new Map(); // id -> {wrap, video, ready}
+const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
 function mountTo(container, node){container.appendChild(node);}
-function initMain(){ const {wrap,video}=createVideoElement(window.sources.main); mountTo(mainContainer,wrap); wrap.style.opacity='1'; mainPlayer=video; }
-function getOrCreateCam(id){
-  let ent=playersCache.get(id); if(ent) return ent;
-  const {wrap,video}=createVideoElement(window.sources[id]); mountTo(camContainer,wrap);
-  const rec={wrap,video,ready:false}; video.addEventListener('canplay',()=>{rec.ready=true;},{once:true});
-  playersCache.set(id,rec); return rec;
+
+function initMain(){
+  const {wrap,video}=createVideoElement(window.sources.main);
+  mountTo(mainContainer,wrap);
+  wrap.style.opacity='1';
+  mainPlayer=video;
 }
+function getOrCreateCam(id){
+  let ent=playersCache.get(id);
+  if(ent) return ent;
+  const {wrap,video}=createVideoElement(window.sources[id]);
+  mountTo(camContainer,wrap);
+  const rec={wrap,video,ready:false};
+  video.addEventListener('canplay',()=>{rec.ready=true;},{once:true});
+  playersCache.set(id,rec);
+  return rec;
+}
+
+/* القائمة */
 function buildStreamList(){
   streamList.innerHTML='';
   (window.channelMap||[]).filter(ch=>hasUrl(ch.src)).forEach(ch=>{
     const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam=ch.id;
     const name=document.createElement('div'); name.className='stream-name'; name.textContent=ch.label;
-    li.appendChild(name); li.addEventListener('click',()=>setActiveCamSmooth(ch.id));
+    li.appendChild(name);
+    li.addEventListener('click',()=>setActiveCamSmooth(ch.id));
     streamList.appendChild(li);
   });
   document.addEventListener('keydown',(e)=>{
@@ -158,33 +141,38 @@ function buildStreamList(){
   });
 }
 function markActiveList(){document.querySelectorAll('.stream-item').forEach(el=>{el.classList.toggle('active',el.dataset.cam===currentCam);});}
-function initOnce(){ initMain(); const first=getOrCreateCam(currentCam); first.wrap.style.opacity='1'; activePlayer=first.video; buildStreamList(); markActiveList(); }
+
+function initOnce(){
+  initMain();
+  const first=getOrCreateCam(currentCam);
+  first.wrap.style.opacity='1';
+  activePlayer=first.video;
+  buildStreamList();
+  markActiveList();
+}
 initOnce();
 
-/* تبديل الكاميرا بدون تقطع */
+/* تبديل الكاميرا بسلاسة */
 async function setActiveCamSmooth(id){
   if(!window.sources[id] || id===currentCam) return;
   currentCam=id; markActiveList();
   const target=getOrCreateCam(id);
   const v=target.video, w=target.wrap;
-
   if(!target.ready) await new Promise(r => v.addEventListener('canplay', r, {once:true}));
-
   let T = capLiveEdge(v, (mainPlayer.currentTime||0));
   await waitBufferedAt(v, T, SHOW_MIN_BUF, 6000);
   v.currentTime = snapIntoBuffer(v, T);
   try{ await v.play(); }catch(_){}
-
   w.className='layer fade-in'; w.style.opacity='1';
   const old = activePlayer, oldWrap = old ? old.parentElement : null;
   setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
 }
 
-/* إخفاء الواجهة تلقائيًا (يشمل شريط .chrome) */
+/* واجهة مخفية تلقائيًا */
 let uiTimer=null;
-function showUI(){ root.classList.remove('ui-hidden'); root.classList.add('ui-visible'); clearTimeout(uiTimer); uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500); }
+function showUI(){root.classList.remove('ui-hidden');root.classList.add('ui-visible');clearTimeout(uiTimer);uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500);}
 ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true}));
-[streamPanel,globalControls,$('#utilityControls'),$('#chrome')].forEach(el=>{
+[streamPanel,globalControls,document.getElementById('utilityControls')].forEach(el=>{
   el.addEventListener('mouseenter',()=>{clearTimeout(uiTimer);root.classList.remove('ui-hidden');root.classList.add('ui-visible');});
   el.addEventListener('mouseleave',showUI);
 });
@@ -194,10 +182,12 @@ setTimeout(showUI,1000);
 async function startPlayback(){
   if(started) return; started=true;
   gatePlay.classList.add('hidden'); globalControls.classList.remove('hidden');
-
   try{ await mainPlayer.play(); }catch(_){}
   try{ await activePlayer.play(); }catch(_){}
-  setTimeout(async()=>{ const m=getSeekableRange(mainPlayer); if(m){ mainPlayer.currentTime = Math.max(m.start, m.end - SAFETY_EDGE); } },300);
+  setTimeout(async()=>{
+    const m=getSeekableRange(mainPlayer);
+    if(m){ mainPlayer.currentTime = Math.max(m.start, m.end - SAFETY_EDGE); }
+  },300);
   startTimeTicker();
 }
 function startTimeTicker(){
@@ -208,7 +198,6 @@ function startTimeTicker(){
     const r=mainPlayer.seekable; if(r&&r.length) d=r.end(r.length-1);
     if(d&&isFinite(d)) scrub.max=d;
     scrub.value=ct||0; timeLabel.textContent=`${fmt(ct)} / ${fmt(d||0)}`;
-
     if(activePlayer && bufferedAhead(activePlayer) < 0.30){
       const m=getSeekableRange(activePlayer);
       if(m){
@@ -219,22 +208,34 @@ function startTimeTicker(){
   },250);
 }
 
-/* تحكّمات */
+/* تحكمات */
 startBtn.addEventListener('click',startPlayback);
-btnSplit.addEventListener('click',()=>{ splitMode=(splitMode+1)%4; root.classList.toggle('split', splitMode!==0); root.classList.remove('mode1','mode2','mode3'); if(splitMode===1) root.classList.add('mode1'); if(splitMode===2) root.classList.add('mode2'); if(splitMode===3) root.classList.add('mode3'); });
-btnFill.addEventListener('click',()=>{ if(splitMode===0){ isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); }else{ splitMode = (splitMode===2)?3:2; root.classList.remove('mode1','mode2','mode3'); root.classList.add(splitMode===2?'mode2':'mode3'); root.classList.add('split'); } });
+btnSplit.addEventListener('click',()=>{
+  splitMode=(splitMode+1)%4;
+  root.classList.toggle('split', splitMode!==0);
+  root.classList.remove('mode1','mode2','mode3');
+  if(splitMode===1) root.classList.add('mode1');
+  if(splitMode===2) root.classList.add('mode2');
+  if(splitMode===3) root.classList.add('mode3');
+});
+btnFill.addEventListener('click',()=>{
+  if(splitMode===0){
+    isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull);
+  }else{
+    splitMode = (splitMode===2)?3:2;
+    root.classList.remove('mode1','mode2','mode3');
+    root.classList.add(splitMode===2?'mode2':'mode3');
+    root.classList.add('split');
+  }
+});
 btnSound.addEventListener('click',()=>{ if(!started) return; mainPlayer.muted=!mainPlayer.muted; if(!mainPlayer.muted) mainPlayer.play().catch(()=>{}); });
-
 const gSeek=(ofs)=>{ if(!started) return; const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs); mainPlayer.currentTime=t; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,t); };
 gBack.addEventListener('click',()=>gSeek(-5));
 gFwd .addEventListener('click',()=>gSeek( 5));
 gPlay.addEventListener('click',async()=>{ if(!started) return; if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}} else mainPlayer.pause(); });
-
 scrub.addEventListener('input',()=>{ if(started) isScrubbing=true; });
 scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(mainPlayer, parseFloat(scrub.value)||0); mainPlayer.currentTime=nt; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,nt); isScrubbing=false; });
-
-$('#mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
-
+document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
 document.addEventListener('keydown',(e)=>{
   if(e.key===' '||e.key==='Enter'){ e.preventDefault(); startPlayback(); }
   if(e.key==='S'||e.key==='s'){ btnSplit.click(); }
@@ -244,75 +245,98 @@ document.addEventListener('keydown',(e)=>{
   if(e.key==='ArrowRight'){ gFwd.click(); }
 });
 
-/* ========= LiveKit: سماح & نشر ========= */
-const roomSel = $('#roomSel');
-const displayName = $('#displayName');
-const pairBtn = $('#pairBtn');
-const publishBtn = $('#publishBtn');
-const stopBtn = $('#stopBtn');
-const lkStatus = $('#lkStatus');
+/* ===== LiveKit: اقتران/نشر ===== */
+const LK = window.Livekit || window.LiveKit || window.livekit || window.LiveKitClient;
+const roomSel = document.getElementById('roomSel');
+const displayName = document.getElementById('displayName');
+const pairBtn = document.getElementById('pairBtn');
+const publishBtn = document.getElementById('publishBtn');
+const stopBtn = document.getElementById('stopBtn');
+const lkStatus = document.getElementById('lkStatus');
 
-let lk = { room:null, tracks:[], connected:false, publishing:false };
+let lkRoom=null;
+let localTracks=[];  // [cameraTrack, micTrack]
 
-async function getToken(room, identity){
-  const url = `https://steps-livekit-api.onrender.com/token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`;
-  const res = await fetch(url, {credentials:'omit'});
-  if(!res.ok) throw new Error(`Token fetch failed: ${res.status}`);
-  const j = await res.json();
-  if(!j || !j.url || !j.token) throw new Error('Invalid token payload');
-  return j;
-}
 function setLKStatus(txt){ lkStatus.textContent = txt; }
-
-pairBtn.addEventListener('click', async ()=>{
-  try{
-    const LK = window.Livekit;
-    if(!LK){ alert('LiveKit SDK غير محمّل. تأكد من توفر vendor/livekit-client.umd.min.js أو CDN.'); return; }
-    lk.tracks = await LK.createLocalTracks({audio:true, video:true});
-    setLKStatus('LiveKit: تم الاقتران (محلي)');
-    publishBtn.disabled = false; stopBtn.disabled = false;
-  }catch(e){ console.error('Pair error:', e); alert('تعذر الوصول للكاميرا/الميكروفون. امنح الإذن ثم أعد المحاولة.'); }
-});
-
-publishBtn.addEventListener('click', async ()=>{
-  const LK = window.Livekit;
-  if(!LK){ alert('LiveKit SDK غير محمّل.'); return; }
-  const roomName = roomSel.value || 'room-1';
-  const identity = (displayName.value || '').trim() || `user-${Math.random().toString(36).slice(2,7)}`;
-
-  try{
-    const {url, token} = await getToken(roomName, identity);
-
-    if(!lk.room){
-      lk.room = new LK.Room({
-        adaptiveStream: true,
-        dynacast: true,
-        publishDefaults: { videoSimulcastLayers: [LK.VideoPresets.h540.layers?.[0] || {}] }
-      });
-      lk.room.on('connected', ()=>{ lk.connected=true; setLKStatus(`LiveKit: متصل (${roomName})`); });
-      lk.room.on('disconnected', ()=>{ lk.connected=false; lk.publishing=false; setLKStatus('LiveKit: غير متصل'); publishBtn.disabled=false; });
-    }
-
-    await lk.room.connect(url, token);
-    for(const t of lk.tracks){ try{ await lk.room.localParticipant.publishTrack(t); }catch(e){ console.warn('publishTrack failed', e); } }
-    lk.publishing = true;
-    setLKStatus(`LiveKit: ينشر الآن (${roomName})`);
-    publishBtn.disabled = true; stopBtn.disabled = false;
-
-  }catch(e){ console.error('Publish error:', e); alert('تعذر نشر الكاميرا/المايك. راجع سيرفر التوكن والـCSP والاتصال.'); }
-});
-
-stopBtn.addEventListener('click', async ()=>{
-  try{
-    if(lk.room){
-      for(const pub of lk.room.localParticipant.trackPublications.values()){
-        try{ await lk.room.localParticipant.unpublishTrack(pub.track, {stop:true}); }catch(_){}
-      }
-      await lk.room.disconnect();
-    }
-  }catch(e){ console.warn(e); }
-  finally{
-    lk.connected=false; lk.publishing=false; setLKStatus('LiveKit: غير متصل');
-    publishBtn.disabled=false; stopBtn.disabled=true;
+function ensureSDK(){
+  if(!LK || !LK.Room || !LK.createLocalTracks){
+    alert('LiveKit SDK غير محمّل، تأكد من توفر vendor/livekit-client.umd.min.js أو CDN.');
+    return false;
   }
+  return true;
+}
+
+pairBtn.addEventListener('click', async () => {
+  try{
+    if(!ensureSDK()) return;
+    // طلب أذونات وتهيئة المسارات
+    setLKStatus('طلب أذونات…');
+    localTracks.forEach(t=>{try{t.stop();}catch(_){}}); localTracks=[];
+
+    const tracks = await LK.createLocalTracks({
+      audio: true,
+      video: { facingMode: 'user', resolution: LK.VideoPresets.h720 }
+    });
+
+    localTracks = tracks;
+    setLKStatus('جاهز للنشر');
+    publishBtn.disabled = false;
+    stopBtn.disabled = false;
+  }catch(err){
+    console.error('Pair error:', err);
+    alert('تعذر الوصول للكاميرا/المايك — امنح الإذن ثم أعد المحاولة.');
+    setLKStatus('فشل الاقتران');
+  }
+});
+
+publishBtn.addEventListener('click', async () => {
+  if(!ensureSDK()) return;
+  try{
+    publishBtn.disabled = true;
+    const roomName = roomSel.value || 'room-1';
+    const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2,8));
+
+    setLKStatus('جلب توكن…');
+    const res = await fetch(`https://steps-livekit-api.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`);
+    if(!res.ok){
+      publishBtn.disabled = false;
+      alert('فشل طلب التوكن (تحقق من السيرفر/الراوت).');
+      setLKStatus('فشل جلب التوكن');
+      return;
+    }
+    const { url, token } = await res.json();
+    if(!url || !token){
+      publishBtn.disabled = false;
+      alert('استجابة توكن غير صحيحة. يجب أن تكون: { url, token }');
+      setLKStatus('توكن غير صالح');
+      return;
+    }
+
+    setLKStatus('الاتصال بالغرفة…');
+    lkRoom = new LK.Room({ adaptiveStream: true, dynacast: true });
+    lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
+    await lkRoom.connect(url, token);
+
+    // نشر المسارات
+    setLKStatus('نشر المسارات…');
+    for (const tr of localTracks){
+      await lkRoom.localParticipant.publishTrack(tr);
+    }
+    setLKStatus(`LiveKit: متصل (${roomName})`);
+  }catch(err){
+    console.error('Publish error:', err);
+    alert('تعذر نشر الصوت/الفيديو — تأكد من الاتصال بالشبكة والتوكن.');
+    setLKStatus('فشل النشر');
+    publishBtn.disabled = false;
+  }
+});
+
+stopBtn.addEventListener('click', () => {
+  try{
+    if(lkRoom){ lkRoom.disconnect(); lkRoom = null; }
+    localTracks.forEach(t=>{try{t.stop();}catch(_){}}); localTracks=[];
+    setLKStatus('LiveKit: غير متصل');
+    publishBtn.disabled = true;
+    stopBtn.disabled = true;
+  }catch(e){}
 });

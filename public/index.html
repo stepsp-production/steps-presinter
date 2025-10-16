@@ -2,57 +2,190 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
+  <!-- CSP مُصحّحة (لا سكربتات inline) -->
   <meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src  'self';
-  style-src   'self' 'unsafe-inline';
-  img-src     'self' data:;
-  font-src    'self' data:;
-  media-src   * blob:;
-  connect-src 'self'
-               https://hls-proxy.it-f2c.workers.dev
-               https://*.trycloudflare.com
-               https://steps-livekit-api.onrender.com
-               wss://*.livekit.cloud;
-  worker-src  'self' blob:;
-  child-src   'self' blob:;
-">
-<meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
+    default-src 'self';
+    script-src  'self' https://cdn.jsdelivr.net https://unpkg.com;
+    style-src   'self' 'unsafe-inline';
+    img-src     'self' data:;
+    font-src    'self' data:;
+    media-src   * blob:;
+    connect-src 'self'
+                 https://hls-proxy.it-f2c.workers.dev
+                 https://*.trycloudflare.com
+                 https://steps-livekit-api.onrender.com
+                 wss://*.livekit.cloud;
+    worker-src  'self' blob:;
+    child-src   'self' blob:;
+  ">
+  <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- أيقونة -->
+  <link rel="icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
+
+  <title>لوحة البث المتعدد</title>
+
   <style>
-    :root{--bg:#0b0f14;--card:#0f151c;--muted:#a9b3be;--ok:#1ccf63;--err:#ff6161;--btn:#1f2937;--btn2:#0e7490}
-    html,body{height:100%} body{margin:0;background:var(--bg);color:#e5eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto}
-    .app{max-width:1280px;margin:0 auto;padding:16px}
-    h1{font-size:22px;margin:0 0 12px}
-    .btn{background:var(--btn);border:1px solid #223045;color:#e5eef7;border-radius:12px;padding:11px 16px;cursor:pointer;font-weight:600}
-    .btn.primary{background:var(--btn2);border-color:#155e75}
-    .btn.ok{background:#166534;border-color:#14532d}
-    .btn.warn{background:#7f1d1d;border-color:#7f1d1d}
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-    .pill{padding:6px 10px;border-radius:999px;background:#0b1220;border:1px solid #162032;font-size:12px}
-    .mono{font-family:ui-monospace,Consolas,monospace}
-    .chrome{position:fixed;inset-inline:0;top:0;z-index:10;transition:opacity .25s, transform .25s}
-    .chrome.hidden{opacity:0;pointer-events:none;transform:translateY(-8px)}
-    .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:linear-gradient(180deg,#0b0f14e6,#0b0f1400);padding:12px 16px}
-    .field{display:flex;gap:8px;align-items:center}
-    .field input,.field select{background:#0b1220;border:1px solid #1c2736;color:#cfe3ff;border-radius:12px;padding:10px;font-weight:600}
-    .wrap{padding-top:70px}
-    .panel{background:#0f151c;border:1px solid #162032;border-radius:16px;padding:12px}
-    .sources{position:fixed;inset-inline-start:16px;top:84px;width:248px;z-index:9;transition:opacity .25s, transform .25s}
-    .chrome.hidden + .wrap .sources{opacity:0;transform:translateY(-8px);pointer-events:none}
-    .sources .btn{width:100%;justify-content:space-between;display:flex;align-items:center;font-weight:700}
-    .sources .btn + .btn{margin-top:8px}
-    .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-inline-start:280px}
-    .card{background:#0c131c;border:1px solid #162032;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
-    .card header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #162032}
-    .name{display:flex;align-items:center;gap:8px}
-    .dot{width:9px;height:9px;border-radius:50%;background:#586273}
-    .dot.live{background:#1ccf63}
-    .card video{width:100%;aspect-ratio:16/9;background:#000;display:block}
-    .card footer{padding:8px 12px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #162032}
-    @media (max-width:1024px){.cards{margin-inline-start:0}.sources{position:static;width:auto}}
+    :root{
+      --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
+      --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26;
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+
+    #playerContainer{position:relative;width:100vw;height:100vh}
+    .videoFrame{position:absolute;top:0;right:0;width:100%;height:100%;background:#000;overflow:hidden}
+
+    /* المعاينة المصغّرة */
+    #mainPreview{position:absolute;top:16px;right:20px;width:22%;height:24%;z-index:6;border:1px solid #fff2;border-radius:18px;cursor:pointer;transition:transform .18s,box-shadow .18s,width .18s,height .18s,top .18s,right .18s,left .18s}
+    #mainPreview:hover{box-shadow:0 10px 30px #0008}
+    #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
+
+    /* تقسيم (MAIN يمين دائمًا) */
+    .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
+    .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
+
+    /* أوضاع التقسيم */
+    .split.mode1 #mainPreview video,
+    .split.mode1 #activeCam  video{object-fit:contain; transform:none}
+    .split.mode2 #mainPreview video,
+    .split.mode2 #activeCam  video{object-fit:contain; transform:scale(1.08); transform-origin:center}
+    .split.mode3 #mainPreview video,
+    .split.mode3 #activeCam  video{object-fit:cover; transform:none}
+
+    /* تكبير المعاينة */
+    .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
+    .main-full #activeCam{display:none}
+    .main-full.cover-one #mainPreview video{object-fit:cover}
+
+    .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
+    .split .hint,.main-full .hint{display:none}
+
+    /* أشرطة/أزرار + إخفاء تلقائي */
+    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
+    #utilityControls{top:10px;right:10px}
+    #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
+    #globalControls.hidden{display:none}
+
+    button{-webkit-tap-highlight-color:transparent;appearance:none;border:0;outline:0;cursor:pointer;background:var(--btn-bg);color:var(--btn-txt);padding:11px 12px;font-size:12px;font-weight:800;border-radius:12px;letter-spacing:.2px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 18px #000a,0 0 0 0 rgba(0,193,154,.28);transition:transform .12s,box-shadow .12s,background .12s}
+    button:hover{background:var(--btn-bg-h);box-shadow:0 12px 26px #000c,0 0 0 6px rgba(0,193,154,.28)}
+    button:active{background:var(--btn-bg-a);transform:translateY(1px)}
+
+    #scrub{-webkit-appearance:none;appearance:none;width:320px;height:6px;border-radius:999px;background:#ffffff30;outline:none;margin:0 8px}
+    #scrub::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid #0006;cursor:pointer}
+    #timeLabel{color:#fff;font-size:12px;min-width:108px;text-align:center}
+
+    #gatePlay{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2))}
+    #gatePlay.hidden{display:none}
+    .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
+    #startBtn{min-width:160px}
+
+    /* القائمة الجانبية (شفافة) */
+    #streamPanel{
+      position:absolute; top:0; left:0; height:100%; width:230px; z-index:12;
+      background:none; border-right:none; padding:12px 10px; color:#fff;
+      transition:opacity .18s; pointer-events:auto;
+    }
+    #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
+    #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
+    .stream-item{
+      display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer;
+      background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20);
+      backdrop-filter: blur(2px);
+      transition:background .12s, border-color .12s, transform .06s;
+    }
+    .stream-item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
+    .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
+    .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
+
+    /* إخفاء واجهة التحكم تلقائيًا */
+    .ui-hidden #streamPanel,
+    .ui-hidden #utilityControls,
+    .ui-hidden #globalControls,
+    .ui-hidden .chrome{opacity:0; pointer-events:none}
+    .ui-visible #streamPanel,
+    .ui-visible #utilityControls,
+    .ui-visible #globalControls,
+    .ui-visible .chrome{opacity:1; pointer-events:auto}
+
+    /* شريط الغرف */
+    .chrome{
+      position:fixed; inset-inline:0; top:0; z-index:20; transition:opacity .18s;
+      display:flex; justify-content:center; pointer-events:none;
+    }
+    .chrome .bar{
+      pointer-events:auto;
+      margin:10px; padding:10px 12px; border-radius:14px;
+      background:var(--panel-bg); border:1px solid var(--panel-bd); color:#fff;
+      display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    }
+    .chrome .field{display:flex; gap:6px; align-items:center}
+    .chrome .btn{background:#262a2f; color:#fff}
+    .chrome .btn.ok{background:var(--btn-bg)}
+    .chrome .btn.warn{background:#e23d3d}
+    .pill{background:#14161a; padding:6px 10px; border-radius:999px; border:1px solid #ffffff1f}
+
+    /* طبقات وتلاشي التبديل */
+    .layer{position:absolute; inset:0;}
+    .fade-in{animation:fadeIn .18s ease forwards}
+    .fade-out{animation:fadeOut .18s ease forwards}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes fadeOut{from{opacity:1}to{opacity:0}}
+
+    @media (orientation: portrait){
+      #mainPreview{top:12px;right:14px;width:58vw;height:36vh;border-radius:18px}
+      #globalControls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);left:50%;transform:translateX(-50%);width:min(94vw,560px);padding:8px 10px;z-index:9999}
+      #scrub{width:clamp(140px,56vw,380px)}
+      #streamPanel{width:190px}
+    }
   </style>
 </head>
-<body>
+<body data-hls-base="https://hls-proxy.it-f2c.workers.dev">
+  <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
+
+    <!-- القائمة الجانبية -->
+    <aside id="streamPanel" aria-label="مصادر البث">
+      <div class="panel-title">SOURCES</div>
+      <ul id="streamList"></ul>
+    </aside>
+
+    <div id="activeCam" class="videoFrame" aria-label="الكاميرا النشطة"></div>
+    <div id="mainPreview" class="videoFrame" title="انقر للتكبير/التصغير" aria-label="المعاينة الرئيسية المصغّرة"></div>
+    <div class="hint">انقر على المعاينة للتكبير • أو اضغط F</div>
+
+    <!-- بوابة البدء -->
+    <div id="gatePlay" role="dialog" aria-modal="true" aria-label="بدء التشغيل">
+      <div class="gate-card">
+        <div class="icon">▶</div>
+        <div>
+          <div style="color:#fff;font-weight:800;margin-bottom:6px">ابدأ التشغيل والمزامنة</div>
+          <div style="font-size:12px;color:#eaeaf0b3">سيظهر شريط التقديم/التأخير بعد الضغط على تشغيل</div>
+        </div>
+        <button id="startBtn" aria-label="ابدأ التشغيل الآن">تشغيل/بدء المزامنة</button>
+      </div>
+    </div>
+
+    <!-- أدوات -->
+    <div id="utilityControls" role="toolbar" aria-label="أدوات">
+      <button id="btnSplit" aria-label="تبديل وضع التقسيم" title="تقسيم">تقسيم</button>
+      <button id="btnFill"  aria-label="تبديل ملء المحتوى" title="ملء">ملء</button>
+      <button id="btnSound" aria-label="تشغيل/إيقاف الصوت" title="صوت">🔊/🔇</button>
+    </div>
+
+    <!-- الشريط الموحّد -->
+    <div id="globalControls" class="hidden" role="group" aria-label="تحكم موحّد">
+      <button id="gBack" title="⏪ -5s">⏪ 5s</button>
+      <button id="gPlay" title="⏯">⏯</button>
+      <button id="gFwd"  title="+5s ⏩">5s ⏩</button>
+      <input id="scrub" type="range" min="0" max="0" value="0" step="0.01" aria-label="شريط التقدم">
+      <div id="timeLabel">00:00 / 00:00</div>
+    </div>
+  </div>
+
+  <!-- شريط الغرف/التحكم بـ LiveKit -->
   <div class="chrome" id="chrome">
     <div class="bar">
       <h1 style="margin-inline-end:8px">لوحة البث المتعدد</h1>
@@ -70,33 +203,20 @@
         <label>الهوية/الاسم:</label>
         <input id="displayName" placeholder="اسم المتحدث" />
       </div>
-      <button id="pairBtn" class="btn">اقتران الكاميرا/المايك</button>
+      <button id="pairBtn" class="btn">سماح (اقتران)</button>
       <button id="publishBtn" class="btn ok" disabled>تشغيل (نشر)</button>
       <button id="stopBtn" class="btn warn" disabled>إيقاف</button>
       <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
     </div>
   </div>
 
-  <div class="wrap">
-    <aside class="panel sources">
-      <div class="pill mono" style="margin-bottom:8px">SOURCES</div>
-      <button class="btn" data-src="live">MAIN • <small class="mono">/hls/live/playlist.m3u8</small></button>
-      <button class="btn" data-src="live2">CAM 2 • <small class="mono">/hls/live2/playlist.m3u8</small></button>
-      <button class="btn" data-src="live3">CAM 3 • <small class="mono">/hls/live3/playlist.m3u8</small></button>
-      <button class="btn" data-src="live4">CAM 4 • <small class="mono">/hls/live4/playlist.m3u8</small></button>
-      <button class="btn" data-src="live5">CAM 5 • <small class="mono">/hls/live5/playlist.m3u8</small></button>
-      <button class="btn" data-src="live6">CAM 6 • <small class="mono">/hls/live6/playlist.m3u8</small></button>
-      <button class="btn" data-src="live7">CAM 7 • <small class="mono">/hls/live7/playlist.m3u8</small></button>
-      <button class="btn" data-src="lastone">SINEFLEX • <small class="mono">/hls/lastone/playlist.m3u8</small></button>
-    </aside>
-    <main class="cards" id="cards"></main>
-  </div>
-
-  <!-- الطرف الثالث -->
-  <script src="./vendor/hls.min.js" defer></script>
-  <script src="./vendor/livekit-client.umd.min.js" defer></script>
-
-  <!-- ملف التطبيق الوحيد -->
-  <script src="./app.js" defer></script>
+  <!-- Vendor (UMD) -->
+  <script src="vendor/hls.min.js" defer></script>
+  <script src="vendor/livekit-client.umd.min.js" defer></script>
+  <script src="vendor/utils.js" defer></script>
+  <script src="vendor/hls-player.js" defer></script>
+  <script src="vendor/lk-pub.js" defer></script>
+  <!-- تطبيقك (كل منطقك وميزاتك هنا) -->
+  <script src="app.js" defer></script>
 </body>
 </html>

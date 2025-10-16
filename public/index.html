@@ -2,23 +2,22 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="
-    default-src 'self';
-    script-src  'self';
-    style-src   'self' 'unsafe-inline';
-    img-src     'self' data:;
-    font-src    'self' data:;
-    media-src   * blob:;
-    connect-src 'self'
-                 https://hls-proxy.it-f2c.workers.dev
-                 https://*.trycloudflare.com
-                 https://steps-livekit-api.onrender.com
-                 wss://*.livekit.cloud;
-    worker-src  'self' blob:;
-  ">
-  <title>Steps MultiCam</title>
-  <meta name="color-scheme" content="dark light" />
+  default-src 'self';
+  script-src  'self';
+  style-src   'self' 'unsafe-inline';
+  img-src     'self' data:;
+  font-src    'self' data:;
+  media-src   * blob:;
+  connect-src 'self'
+               https://hls-proxy.it-f2c.workers.dev
+               https://*.trycloudflare.com
+               https://steps-livekit-api.onrender.com
+               wss://*.livekit.cloud;
+  worker-src  'self' blob:;
+  child-src   'self' blob:;
+">
+<meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
   <style>
     :root{--bg:#0b0f14;--card:#0f151c;--muted:#a9b3be;--ok:#1ccf63;--err:#ff6161;--btn:#1f2937;--btn2:#0e7490}
     html,body{height:100%} body{margin:0;background:var(--bg);color:#e5eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto}

@@ -1,0 +1,8 @@
+name = "hls-proxy"
+main = "src/worker.js"
+compatibility_date = "2024-10-01"
+workers_dev = true
+
+[vars]
+ORIGIN_BASE = "https://coating-entities-camel-distances.trycloudflare.com"
+UPSTREAM_PREFIX = "/hls"

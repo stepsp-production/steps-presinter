@@ -4,13 +4,13 @@
 const PROXY_BASE = 'https://hls-proxy.it-f2c.workers.dev';
 const STREAMS = [
   { id: 'main',  title: 'Main',  path: '/hls/live/playlist.m3u8'  },
-  { id: 'live2', title: 'Live 2', path: '/hls/live2/playlist.m3u8' },
-  { id: 'live3', title: 'Live 3', path: '/hls/live3/playlist.m3u8' },
-  { id: 'live4', title: 'Live 4', path: '/hls/live4/playlist.m3u8' },
-  { id: 'live5', title: 'Live 5', path: '/hls/live5/playlist.m3u8' },
-  { id: 'live6', title: 'Live 6', path: '/hls/live6/playlist.m3u8' },
-  { id: 'live7', title: 'Live 7', path: '/hls/live7/playlist.m3u8' },
-  { id: 'last',  title: 'Last One', path: '/hls/lastone/playlist.m3u8' },
+   { id: 'Cam1',  title: 'Cam 1', path: '/hls/lastone/playlist.m3u8' },
+  { id: 'Cam2', title: 'Cam 2', path: '/hls/live2/playlist.m3u8' },
+  { id: 'Cam3', title: 'Cam 3', path: '/hls/live3/playlist.m3u8' },
+  { id: 'Cam4', title: 'Cam 4', path: '/hls/live4/playlist.m3u8' },
+  { id: 'Cam5', title: 'Cam 5', path: '/hls/live5/playlist.m3u8' },
+  { id: 'Cam6', title: 'Cam 6', path: '/hls/live6/playlist.m3u8' },
+  { id: 'Cam7', title: 'Cam 7', path: '/hls/live7/playlist.m3u8' },
 ];
 
 const ROOMS = Array.from({ length: 10 }, (_, i) => `room-${i+1}`);

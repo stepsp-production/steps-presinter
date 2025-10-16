@@ -26,10 +26,10 @@
   ];
 })();
 
-/* ========= أدوات مساعدة ========= */
+/* ========= أدوات ========= */
 const $ = (sel)=>document.querySelector(sel);
 
-/* ========= إعدادات تشغيل HLS (محافظة) ========= */
+/* ========= إعدادات HLS ========= */
 const SAFETY_EDGE   = 0.80;
 const SHOW_MIN_BUF  = 1.25;
 const STARVED_RESEEK= 0.25;
@@ -77,8 +77,7 @@ function attachHlsWithAvc(video,url){
   const hls=new Hls({...HLS_CFG}); video.__hls=hls; hls.attachMedia(video);
   hls.on(Hls.Events.MEDIA_ATTACHED,()=>{hls.loadSource(url);});
   hls.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{try{
-    const lv=data?.levels||[];
-    const s=pickBestAvc(lv,480); const mx=highestAvcIndex(lv);
+    const lv=data?.levels||[]; const s=pickBestAvc(lv,480); const mx=highestAvcIndex(lv);
     if(s>=0){hls.startLevel=s;hls.currentLevel=s;hls.nextLevel=s;}
     if(mx>=0){hls.autoLevelCapping=mx;}
   }catch(e){}});
@@ -88,8 +87,6 @@ function attachHlsWithAvc(video,url){
       else { try{hls.destroy();}catch(e){} try{attachHlsWithAvc(video,url);}catch(_){ } }
     }
   });
-
-  // جوع البافر
   const starve=()=>{try{
     const m=getSeekableRange(video); if(!m) return;
     const near = Math.max(m.start, m.end - SAFETY_EDGE - STARVED_RESEEK);
@@ -135,35 +132,23 @@ const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).
 let started=false, splitMode=0, isMainFull=false;
 let mainPlayer, activePlayer, currentCam='cam2';
 let ticker=null, isScrubbing=false;
-const playersCache=new Map(); // id -> {wrap, video, ready}
+const playersCache=new Map();
 
+/* mount & init */
 function mountTo(container, node){container.appendChild(node);}
-
-function initMain(){
-  const {wrap,video}=createVideoElement(window.sources.main);
-  mountTo(mainContainer,wrap);
-  wrap.style.opacity='1';
-  mainPlayer=video;
-}
+function initMain(){ const {wrap,video}=createVideoElement(window.sources.main); mountTo(mainContainer,wrap); wrap.style.opacity='1'; mainPlayer=video; }
 function getOrCreateCam(id){
-  let ent=playersCache.get(id);
-  if(ent) return ent;
-  const {wrap,video}=createVideoElement(window.sources[id]);
-  mountTo(camContainer,wrap);
-  const rec={wrap,video,ready:false};
-  video.addEventListener('canplay',()=>{rec.ready=true;},{once:true});
-  playersCache.set(id,rec);
-  return rec;
+  let ent=playersCache.get(id); if(ent) return ent;
+  const {wrap,video}=createVideoElement(window.sources[id]); mountTo(camContainer,wrap);
+  const rec={wrap,video,ready:false}; video.addEventListener('canplay',()=>{rec.ready=true;},{once:true});
+  playersCache.set(id,rec); return rec;
 }
-
-/* القائمة */
 function buildStreamList(){
   streamList.innerHTML='';
   (window.channelMap||[]).filter(ch=>hasUrl(ch.src)).forEach(ch=>{
     const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam=ch.id;
     const name=document.createElement('div'); name.className='stream-name'; name.textContent=ch.label;
-    li.appendChild(name);
-    li.addEventListener('click',()=>setActiveCamSmooth(ch.id));
+    li.appendChild(name); li.addEventListener('click',()=>setActiveCamSmooth(ch.id));
     streamList.appendChild(li);
   });
   document.addEventListener('keydown',(e)=>{
@@ -173,19 +158,10 @@ function buildStreamList(){
   });
 }
 function markActiveList(){document.querySelectorAll('.stream-item').forEach(el=>{el.classList.toggle('active',el.dataset.cam===currentCam);});}
-
-function initOnce(){
-  initMain();
-  const first=getOrCreateCam(currentCam);
-  first.wrap.style.opacity='1';
-  activePlayer=first.video;
-
-  buildStreamList();
-  markActiveList();
-}
+function initOnce(){ initMain(); const first=getOrCreateCam(currentCam); first.wrap.style.opacity='1'; activePlayer=first.video; buildStreamList(); markActiveList(); }
 initOnce();
 
-/* تبديل الكاميرا بدون تقطّع */
+/* تبديل الكاميرا بدون تقطع */
 async function setActiveCamSmooth(id){
   if(!window.sources[id] || id===currentCam) return;
   currentCam=id; markActiveList();
@@ -204,13 +180,9 @@ async function setActiveCamSmooth(id){
   setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
 }
 
-/* إخفاء واجهة التحكم تلقائيًا (تشمل شريط الغرف .chrome) */
+/* إخفاء الواجهة تلقائيًا (يشمل شريط .chrome) */
 let uiTimer=null;
-function showUI(){
-  root.classList.remove('ui-hidden'); root.classList.add('ui-visible');
-  clearTimeout(uiTimer);
-  uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500);
-}
+function showUI(){ root.classList.remove('ui-hidden'); root.classList.add('ui-visible'); clearTimeout(uiTimer); uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500); }
 ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true}));
 [streamPanel,globalControls,$('#utilityControls'),$('#chrome')].forEach(el=>{
   el.addEventListener('mouseenter',()=>{clearTimeout(uiTimer);root.classList.remove('ui-hidden');root.classList.add('ui-visible');});
@@ -225,18 +197,13 @@ async function startPlayback(){
 
   try{ await mainPlayer.play(); }catch(_){}
   try{ await activePlayer.play(); }catch(_){}
-  setTimeout(async()=>{
-    const m=getSeekableRange(mainPlayer);
-    if(m){ mainPlayer.currentTime = Math.max(m.start, m.end - SAFETY_EDGE); }
-  },300);
-
+  setTimeout(async()=>{ const m=getSeekableRange(mainPlayer); if(m){ mainPlayer.currentTime = Math.max(m.start, m.end - SAFETY_EDGE); } },300);
   startTimeTicker();
 }
 function startTimeTicker(){
   if(ticker) return;
   ticker=setInterval(()=>{
     if(isScrubbing) return;
-
     let d=0, ct=mainPlayer.currentTime||0;
     const r=mainPlayer.seekable; if(r&&r.length) d=r.end(r.length-1);
     if(d&&isFinite(d)) scrub.max=d;
@@ -254,28 +221,8 @@ function startTimeTicker(){
 
 /* تحكّمات */
 startBtn.addEventListener('click',startPlayback);
-
-// زر التقسيم — 0 عادي → 1 contain → 2 نصف حواف → 3 ملء كامل
-btnSplit.addEventListener('click',()=>{
-  splitMode=(splitMode+1)%4;
-  root.classList.toggle('split', splitMode!==0);
-  root.classList.remove('mode1','mode2','mode3');
-  if(splitMode===1) root.classList.add('mode1');
-  if(splitMode===2) root.classList.add('mode2');
-  if(splitMode===3) root.classList.add('mode3');
-});
-
-// زر الملء
-btnFill.addEventListener('click',()=>{
-  if(splitMode===0){
-    isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull);
-  }else{
-    splitMode = (splitMode===2)?3:2;
-    root.classList.remove('mode1','mode2','mode3');
-    root.classList.add(splitMode===2?'mode2':'mode3');
-    root.classList.add('split');
-  }
-});
+btnSplit.addEventListener('click',()=>{ splitMode=(splitMode+1)%4; root.classList.toggle('split', splitMode!==0); root.classList.remove('mode1','mode2','mode3'); if(splitMode===1) root.classList.add('mode1'); if(splitMode===2) root.classList.add('mode2'); if(splitMode===3) root.classList.add('mode3'); });
+btnFill.addEventListener('click',()=>{ if(splitMode===0){ isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); }else{ splitMode = (splitMode===2)?3:2; root.classList.remove('mode1','mode2','mode3'); root.classList.add(splitMode===2?'mode2':'mode3'); root.classList.add('split'); } });
 btnSound.addEventListener('click',()=>{ if(!started) return; mainPlayer.muted=!mainPlayer.muted; if(!mainPlayer.muted) mainPlayer.play().catch(()=>{}); });
 
 const gSeek=(ofs)=>{ if(!started) return; const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs); mainPlayer.currentTime=t; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,t); };
@@ -297,20 +244,7 @@ document.addEventListener('keydown',(e)=>{
   if(e.key==='ArrowRight'){ gFwd.click(); }
 });
 
-/* ========= Debug (اختياري) ========= */
-(function addHlsDebug(){
-  function wireDebug(video){
-    const h=video && video.__hls; if(!h) return;
-    h.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{console.log('[HLS] MANIFEST_PARSED levels=',(data&&data.levels||[]).map(l=>({h:l.height,codecs:l.codecs})));});
-    h.on(Hls.Events.LEVEL_LOADED,(_,data)=>{console.log('[HLS] LEVEL_LOADED targetduration=',data?.details?.targetduration,'frags=',data?.details?.fragments?.length);});
-    h.on(Hls.Events.ERROR,(_,err)=>{console.error('[HLS] ERROR',err?.type,err?.details,err);});
-  }
-  const mo=new MutationObserver(()=>{document.querySelectorAll('video').forEach(v=>{if(!v.__debugWired && v.__hls){v.__debugWired=true;wireDebug(v);}});});
-  mo.observe(document.body,{childList:true,subtree:true});
-})();
-
 /* ========= LiveKit: سماح & نشر ========= */
-/* يعتمد على vendor/livekit-client.umd.min.js (واجهة UMD: window.Livekit) */
 const roomSel = $('#roomSel');
 const displayName = $('#displayName');
 const pairBtn = $('#pairBtn');
@@ -318,40 +252,31 @@ const publishBtn = $('#publishBtn');
 const stopBtn = $('#stopBtn');
 const lkStatus = $('#lkStatus');
 
-let lk = {
-  room: null,
-  tracks: [],   // local audio/video tracks
-  connected: false,
-  publishing: false,
-};
+let lk = { room:null, tracks:[], connected:false, publishing:false };
 
 async function getToken(room, identity){
   const url = `https://steps-livekit-api.onrender.com/token?room=${encodeURIComponent(room)}&identity=${encodeURIComponent(identity)}`;
   const res = await fetch(url, {credentials:'omit'});
-  if(!res.ok){
-    throw new Error(`Token fetch failed: ${res.status}`);
-  }
+  if(!res.ok) throw new Error(`Token fetch failed: ${res.status}`);
   const j = await res.json();
   if(!j || !j.url || !j.token) throw new Error('Invalid token payload');
-  return j; // {url, token}
+  return j;
 }
-
 function setLKStatus(txt){ lkStatus.textContent = txt; }
 
 pairBtn.addEventListener('click', async ()=>{
   try{
-    // اطلب أذونات المايك والكاميرا (اقتران)
-    lk.tracks = await Livekit.createLocalTracks({audio:true, video:true});
+    const LK = window.Livekit;
+    if(!LK){ alert('LiveKit SDK غير محمّل. تأكد من توفر vendor/livekit-client.umd.min.js أو CDN.'); return; }
+    lk.tracks = await LK.createLocalTracks({audio:true, video:true});
     setLKStatus('LiveKit: تم الاقتران (محلي)');
-    publishBtn.disabled = false;
-    stopBtn.disabled = false;
-  }catch(e){
-    console.error('Pair error:', e);
-    alert('تعذر الوصول للكاميرا/الميكروفون. امنح الإذن ثم أعد المحاولة.');
-  }
+    publishBtn.disabled = false; stopBtn.disabled = false;
+  }catch(e){ console.error('Pair error:', e); alert('تعذر الوصول للكاميرا/الميكروفون. امنح الإذن ثم أعد المحاولة.'); }
 });
 
 publishBtn.addEventListener('click', async ()=>{
+  const LK = window.Livekit;
+  if(!LK){ alert('LiveKit SDK غير محمّل.'); return; }
   const roomName = roomSel.value || 'room-1';
   const identity = (displayName.value || '').trim() || `user-${Math.random().toString(36).slice(2,7)}`;
 
@@ -359,35 +284,27 @@ publishBtn.addEventListener('click', async ()=>{
     const {url, token} = await getToken(roomName, identity);
 
     if(!lk.room){
-      lk.room = new Livekit.Room({
+      lk.room = new LK.Room({
         adaptiveStream: true,
         dynacast: true,
-        publishDefaults: { videoSimulcastLayers: [Livekit.VideoPresets.h540.layers?.[0] || {}] }
+        publishDefaults: { videoSimulcastLayers: [LK.VideoPresets.h540.layers?.[0] || {}] }
       });
       lk.room.on('connected', ()=>{ lk.connected=true; setLKStatus(`LiveKit: متصل (${roomName})`); });
       lk.room.on('disconnected', ()=>{ lk.connected=false; lk.publishing=false; setLKStatus('LiveKit: غير متصل'); publishBtn.disabled=false; });
     }
 
     await lk.room.connect(url, token);
-    // نشر التراكس
-    for(const t of lk.tracks){
-      try{ await lk.room.localParticipant.publishTrack(t); }catch(e){ console.warn('publishTrack failed', e); }
-    }
+    for(const t of lk.tracks){ try{ await lk.room.localParticipant.publishTrack(t); }catch(e){ console.warn('publishTrack failed', e); } }
     lk.publishing = true;
     setLKStatus(`LiveKit: ينشر الآن (${roomName})`);
-    publishBtn.disabled = true;
-    stopBtn.disabled = false;
+    publishBtn.disabled = true; stopBtn.disabled = false;
 
-  }catch(e){
-    console.error('Publish error:', e);
-    alert('تعذر نشر الكاميرا/المايك. تحقّق من خدمة التوكن والـCSP والاتصال.');
-  }
+  }catch(e){ console.error('Publish error:', e); alert('تعذر نشر الكاميرا/المايك. راجع سيرفر التوكن والـCSP والاتصال.'); }
 });
 
 stopBtn.addEventListener('click', async ()=>{
   try{
     if(lk.room){
-      // إلغاء النشر
       for(const pub of lk.room.localParticipant.trackPublications.values()){
         try{ await lk.room.localParticipant.unpublishTrack(pub.track, {stop:true}); }catch(_){}
       }

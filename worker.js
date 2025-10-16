@@ -1,7 +1,7 @@
 // worker.js
 export default {
   async fetch(request, env, ctx) {
-    const origin = 'https://coating-entities-camel-distances.trycloudflare.com'; // غيّره إلى نفقك
+    const origin = 'https://dpi-magic-professionals-findings.trycloudflare.com'; // غيّره إلى نفقك
 
     const inUrl = new URL(request.url);
     const outUrl = new URL(origin);

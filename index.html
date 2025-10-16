@@ -2,101 +2,130 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="
-  default-src 'self';
-  script-src  'self';
-  style-src   'self' 'unsafe-inline';
-  img-src     'self' data:;
-  font-src    'self' data:;
-  media-src   * blob:;
-  connect-src 'self'
-               https://hls-proxy.it-f2c.workers.dev
-               https://*.trycloudflare.com
-               https://steps-livekit-api.onrender.com
-               wss://*.livekit.cloud;
-  worker-src  'self' blob:;
-  child-src   'self' blob:;
-">
-<meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>مشاهدة الكاميرات & الغرف</title>
+  <meta name="color-scheme" content="dark light" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link rel="preconnect" href="https://unpkg.com" />
+
   <style>
-    :root{--bg:#0b0f14;--card:#0f151c;--muted:#a9b3be;--ok:#1ccf63;--err:#ff6161;--btn:#1f2937;--btn2:#0e7490}
-    html,body{height:100%} body{margin:0;background:var(--bg);color:#e5eef7;font-family:system-ui,-apple-system,Segoe UI,Roboto}
-    .app{max-width:1280px;margin:0 auto;padding:16px}
-    h1{font-size:22px;margin:0 0 12px}
-    .btn{background:var(--btn);border:1px solid #223045;color:#e5eef7;border-radius:12px;padding:11px 16px;cursor:pointer;font-weight:600}
-    .btn.primary{background:var(--btn2);border-color:#155e75}
-    .btn.ok{background:#166534;border-color:#14532d}
-    .btn.warn{background:#7f1d1d;border-color:#7f1d1d}
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-    .pill{padding:6px 10px;border-radius:999px;background:#0b1220;border:1px solid #162032;font-size:12px}
-    .mono{font-family:ui-monospace,Consolas,monospace}
-    .chrome{position:fixed;inset-inline:0;top:0;z-index:10;transition:opacity .25s, transform .25s}
-    .chrome.hidden{opacity:0;pointer-events:none;transform:translateY(-8px)}
-    .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:linear-gradient(180deg,#0b0f14e6,#0b0f1400);padding:12px 16px}
-    .field{display:flex;gap:8px;align-items:center}
-    .field input,.field select{background:#0b1220;border:1px solid #1c2736;color:#cfe3ff;border-radius:12px;padding:10px;font-weight:600}
-    .wrap{padding-top:70px}
-    .panel{background:#0f151c;border:1px solid #162032;border-radius:16px;padding:12px}
-    .sources{position:fixed;inset-inline-start:16px;top:84px;width:248px;z-index:9;transition:opacity .25s, transform .25s}
-    .chrome.hidden + .wrap .sources{opacity:0;transform:translateY(-8px);pointer-events:none}
-    .sources .btn{width:100%;justify-content:space-between;display:flex;align-items:center;font-weight:700}
-    .sources .btn + .btn{margin-top:8px}
-    .cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-inline-start:280px}
-    .card{background:#0c131c;border:1px solid #162032;border-radius:16px;overflow:hidden;display:flex;flex-direction:column}
-    .card header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #162032}
-    .name{display:flex;align-items:center;gap:8px}
-    .dot{width:9px;height:9px;border-radius:50%;background:#586273}
-    .dot.live{background:#1ccf63}
-    .card video{width:100%;aspect-ratio:16/9;background:#000;display:block}
-    .card footer{padding:8px 12px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #162032}
-    @media (max-width:1024px){.cards{margin-inline-start:0}.sources{position:static;width:auto}}
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --muted: #a3b1c6;
+      --accent: #4cc9f0;
+      --accent-2: #22c55e;
+      --danger: #ef4444;
+      --btn: #232838;
+      --btn-hover: #2d3650;
+      --ring: #334155;
+      --card: #0b0d12;
+    }
+    html,body {margin:0;padding:0;background:var(--bg);color:#e5e7eb;font-family:system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans", "Helvetica Neue", Arial;}
+    .topbar {
+      position: sticky; top:0; z-index:50; background:linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,.35));
+      backdrop-filter: blur(6px); border-bottom:1px solid #1f2430;
+      display:flex; align-items:center; gap:12px; padding:10px 14px;
+    }
+    .brand {font-weight:700; letter-spacing:.3px;}
+    .ghost {opacity:.8}
+    .layout {
+      display:grid; grid-template-columns: 1fr 320px; gap:14px; padding:14px;
+    }
+    .grid {
+      display:grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap:12px;
+    }
+    .card {
+      background:var(--card); border:1px solid #1b2230; border-radius:16px; overflow:hidden;
+      box-shadow: 0 10px 24px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.02);
+    }
+    .card header {padding:8px 12px;border-bottom:1px solid #1b2230;display:flex;align-items:center;justify-content:space-between}
+    video {width:100%; aspect-ratio:16/9; background:#000;}
+    .panel {
+      background:var(--panel); border:1px solid #1b2230; border-radius:18px; padding:14px; position:sticky; top:72px; height:fit-content;
+    }
+    .btn {
+      appearance:none; border:1px solid var(--ring); background:var(--btn); color:#e5e7eb; padding:10px 14px; border-radius:12px;
+      font-weight:600; cursor:pointer; transition:.18s ease; width:100%; text-align:center;
+    }
+    .btn:hover { background:var(--btn-hover); transform:translateY(-1px) }
+    .btn:active { transform:translateY(0) }
+    .btn.accent { border-color:transparent; background:linear-gradient(135deg, var(--accent), #7c3aed); }
+    .btn.publish { border-color:transparent; background:linear-gradient(135deg, var(--accent-2), #16a34a); }
+    .btn.danger { background:var(--danger); border-color:#7f1d1d; }
+    .group {display:flex; gap:10px}
+    .hint {color:var(--muted); font-size:.92rem}
+    .badge {font-size:.8rem; padding:2px 8px; border-radius:999px; border:1px solid #28425b; background:#0f1520}
+    .selectShell {position:relative}
+    .selectFloating {
+      position:absolute; inset-inline-start:0; top:100%; width:260px; background:var(--panel); border:1px solid #233044; border-radius:14px; padding:6px; display:none;
+      box-shadow:0 16px 36px rgba(0,0,0,.35);
+    }
+    .selectFloating a {
+      display:flex; padding:10px 12px; border-radius:10px; color:#cbd5e1; text-decoration:none; border:1px solid transparent;
+    }
+    .selectFloating a:hover { background:#1b2230; border-color:#2a3750 }
+    .dropdown-toggle {
+      border:1px dashed #2a3750; padding:8px 12px; border-radius:10px; cursor:pointer; background:#131822;
+    }
+    /* تُخفي القائمة وتظهر فقط عند تحريك الماوس فوق الشريط */
+    .topbar.mouse-active .selectFloating { display:block }
+    /* إخفاء كل الأزرار داخل التوببار حتى المرور بالماوس */
+    .topbar .auto-hide {opacity:0; pointer-events:none; transition:opacity .18s ease}
+    .topbar.mouse-active .auto-hide {opacity:1; pointer-events:auto}
+
+    .footer {text-align:center; color:#93a1b5; font-size:.85rem; padding:14px}
+    .sr {position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0)}
   </style>
 </head>
 <body>
-  <div class="chrome" id="chrome">
-    <div class="bar">
-      <h1 style="margin-inline-end:8px">لوحة البث المتعدد</h1>
-      <div class="field">
-        <label>الغرفة:</label>
-        <select id="roomSel">
-          <option value="room-1">room-1</option><option value="room-2">room-2</option>
-          <option value="room-3">room-3</option><option value="room-4">room-4</option>
-          <option value="room-5">room-5</option><option value="room-6">room-6</option>
-          <option value="room-7">room-7</option><option value="room-8">room-8</option>
-          <option value="room-9">room-9</option><option value="room-10">room-10</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>الهوية/الاسم:</label>
-        <input id="displayName" placeholder="اسم المتحدث" />
-      </div>
-      <button id="pairBtn" class="btn">اقتران الكاميرا/المايك</button>
-      <button id="publishBtn" class="btn ok" disabled>تشغيل (نشر)</button>
-      <button id="stopBtn" class="btn warn" disabled>إيقاف</button>
-      <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
+  <header class="topbar" id="topbar">
+    <div class="brand">📺 <span class="ghost">لوحة</span> المراقبة</div>
+
+    <div class="selectShell auto-hide" id="roomsShell" aria-haspopup="true">
+      <div class="dropdown-toggle" aria-expanded="false">الغرف</div>
+      <nav class="selectFloating" id="roomsMenu" aria-label="قائمة الغرف">
+        <!-- يُحقن العناصر من app.js -->
+      </nav>
     </div>
-  </div>
 
-  <div class="wrap">
-    <aside class="panel sources">
-      <div class="pill mono" style="margin-bottom:8px">SOURCES</div>
-      <button class="btn" data-src="live">MAIN • <small class="mono">/hls/live/playlist.m3u8</small></button>
-      <button class="btn" data-src="live2">CAM 2 • <small class="mono">/hls/live2/playlist.m3u8</small></button>
-      <button class="btn" data-src="live3">CAM 3 • <small class="mono">/hls/live3/playlist.m3u8</small></button>
-      <button class="btn" data-src="live4">CAM 4 • <small class="mono">/hls/live4/playlist.m3u8</small></button>
-      <button class="btn" data-src="live5">CAM 5 • <small class="mono">/hls/live5/playlist.m3u8</small></button>
-      <button class="btn" data-src="live6">CAM 6 • <small class="mono">/hls/live6/playlist.m3u8</small></button>
-      <button class="btn" data-src="live7">CAM 7 • <small class="mono">/hls/live7/playlist.m3u8</small></button>
-      <button class="btn" data-src="lastone">SINEFLEX • <small class="mono">/hls/lastone/playlist.m3u8</small></button>
+    <span class="badge auto-hide" id="statusBadge">جاهز</span>
+  </header>
+
+  <main class="layout">
+    <section class="grid" id="videoGrid">
+      <!-- الكروت تُنشأ من app.js -->
+    </section>
+
+    <aside class="panel">
+      <h3 style="margin-top:0">التحكّم</h3>
+      <p class="hint">اربط النفق بـ Worker ثم اسمح للكاميرا والميكروفون للنشر في الغرفة الحالية.</p>
+      <div class="group">
+        <button class="btn accent" id="btn-permission">سماح (كاميرا/مايك)</button>
+      </div>
+      <div class="group" style="margin-top:8px">
+        <button class="btn publish" id="btn-publish">نشر</button>
+        <button class="btn danger" id="btn-stop">إيقاف</button>
+      </div>
+      <hr style="border-color:#223048; opacity:.5; margin:14px 0">
+      <label class="hint">اختيارات التشغيل</label>
+      <div class="group">
+        <button class="btn" id="btn-reload-hls">إعادة تهيئة HLS</button>
+      </div>
+      <p class="hint" style="margin-top:10px">Proxy: <code id="proxyBase">https://hls-proxy.it-f2c.workers.dev</code></p>
+      <p class="hint">Token API: <code>https://steps-livekit-api.onrender.com/token</code></p>
     </aside>
-    <main class="cards" id="cards"></main>
-  </div>
+  </main>
 
-  <!-- الطرف الثالث -->
-  <script src="./vendor/hls.min.js" defer></script>
-  <script src="./vendor/livekit-client.umd.min.js" defer></script>
+  <div class="footer">HLS عبر Cloudflare Worker • LiveKit Rooms</div>
 
-  <!-- ملف التطبيق الوحيد -->
-  <script src="./app.js" defer></script>
+  <!-- مكتبات (محملات) -->
+  <script src="/vendor/hls.min.js"></script>
+  <script src="/vendor/livekit-client.umd.min.js"></script>
+  <!-- وحداتك -->
+  <script src="/vendor/utils.js"></script>
+  <script src="/vendor/hls-player.js"></script>
+  <script src="/vendor/lk-pub.js"></script>
+  <script src="/app.js" defer></script>
 </body>
 </html>

@@ -1,45 +1,130 @@
-// app.js — مقتطف تشغيل HLS
-import Hls from './vendor/hls.min.js';
+// app.js
 
-export function attachHls(videoEl, src) {
-  if (!Hls.isSupported()) {
-    videoEl.src = src; // Safari
-    videoEl.play().catch(() => {});
-    return;
+/* ========= تكوين عام ========= */
+const PROXY_BASE = 'https://hls-proxy.it-f2c.workers.dev';
+const STREAMS = [
+  { id: 'main',  title: 'Main',  path: '/hls/live/playlist.m3u8'  },
+  { id: 'live2', title: 'Live 2', path: '/hls/live2/playlist.m3u8' },
+  { id: 'live3', title: 'Live 3', path: '/hls/live3/playlist.m3u8' },
+  { id: 'live4', title: 'Live 4', path: '/hls/live4/playlist.m3u8' },
+  { id: 'live5', title: 'Live 5', path: '/hls/live5/playlist.m3u8' },
+  { id: 'live6', title: 'Live 6', path: '/hls/live6/playlist.m3u8' },
+  { id: 'live7', title: 'Live 7', path: '/hls/live7/playlist.m3u8' },
+  { id: 'last',  title: 'Last One', path: '/hls/lastone/playlist.m3u8' },
+];
+
+const ROOMS = Array.from({ length: 10 }, (_, i) => `room-${i+1}`);
+
+let currentRoom = ROOMS[0];
+let hlsPlayers = []; // { id, video, destroy }
+
+/* ========= DOM ========= */
+const topbar = document.getElementById('topbar');
+const roomsMenu = document.getElementById('roomsMenu');
+const statusBadge = document.getElementById('statusBadge');
+const grid = document.getElementById('videoGrid');
+const btnPermission = document.getElementById('btn-permission');
+const btnPublish = document.getElementById('btn-publish');
+const btnStop = document.getElementById('btn-stop');
+const btnReloadHls = document.getElementById('btn-reload-hls');
+const proxyBaseEl = document.getElementById('proxyBase');
+
+/* ========= واجهة الغرف (قائمة منسدلة تظهر عند تحريك الماوس) ========= */
+(function setupHoverReveal() {
+  let timer;
+  function onMove() {
+    topbar.classList.add('mouse-active');
+    clearTimeout(timer);
+    timer = setTimeout(() => topbar.classList.remove('mouse-active'), 1800);
   }
+  window.addEventListener('mousemove', onMove, { passive: true });
+})();
 
-  const hls = new Hls({
-    // الأفضل تركه مفعّل بعد إصلاح الـCSP
-    enableWorker: true,
-    lowLatencyMode: true,
-    // مهلات معتدلة
-    manifestLoadingTimeOut: 15000,
-    fragLoadingTimeOut: 20000,
-    // تقليل إعادة المحاولة العنيف
-    fragLoadingRetryDelay: 1000,
-    levelLoadingRetryDelay: 1000,
+function renderRooms() {
+  roomsMenu.innerHTML = '';
+  ROOMS.forEach(room => {
+    const a = document.createElement('a');
+    a.href = '#';
+    a.textContent = room + (room === currentRoom ? ' (الحالية)' : '');
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      currentRoom = room;
+      renderRooms();
+      status(`تم اختيار ${room}`);
+    });
+    roomsMenu.appendChild(a);
   });
-
-  hls.on(Hls.Events.ERROR, (_, data) => {
-    console.log('[HLS] ERROR', data);
-
-    // إن وصل FragParsingError (0x47) جرّب تعافٍ سريع
-    if (data?.type === Hls.ErrorTypes.MEDIA_ERROR) {
-      try { hls.recoverMediaError(); } catch {}
-    }
-
-    // كحل أخير: أعد تهيئة بدون workers
-    if (data?.type === Hls.ErrorTypes.MEDIA_ERROR && data?.details === Hls.ErrorDetails.FRAG_PARSING_ERROR) {
-      try {
-        hls.destroy();
-        const hls2 = new Hls({ enableWorker: false, lowLatencyMode: true });
-        hls2.attachMedia(videoEl);
-        hls2.loadSource(src);
-      } catch {}
-    }
-  });
-
-  hls.attachMedia(videoEl);
-  hls.loadSource(src);
-  videoEl.play().catch(() => {});
 }
+renderRooms();
+
+/* ========= شبكة الفيديو & HLS ========= */
+function renderGrid() {
+  grid.innerHTML = '';
+  hlsPlayers.forEach(p => p.destroy?.());
+  hlsPlayers = [];
+
+  STREAMS.forEach(stream => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    const header = document.createElement('header');
+    const h4 = document.createElement('div');
+    h4.textContent = stream.title;
+    const span = document.createElement('span');
+    span.className = 'hint';
+    span.textContent = stream.path;
+    header.appendChild(h4); header.appendChild(span);
+    const video = document.createElement('video');
+    video.playsInline = true; video.controls = true; video.muted = true; // mute لتسهيل التشغيل التلقائي
+
+    card.appendChild(header); card.appendChild(video);
+    grid.appendChild(card);
+
+    const url = PROXY_BASE + stream.path;
+    const destroy = window.attachHlsTo(video, url);
+    hlsPlayers.push({ id: stream.id, video, destroy });
+  });
+
+  proxyBaseEl.textContent = PROXY_BASE;
+}
+renderGrid();
+
+btnReloadHls.addEventListener('click', () => {
+  renderGrid();
+  status('أُعيد تهيئة HLS');
+});
+
+/* ========= ستيتس ========= */
+function status(msg) {
+  statusBadge.textContent = msg;
+}
+
+/* ========= سماح & نشر (LiveKit) ========= */
+btnPermission.addEventListener('click', async () => {
+  try {
+    await window.LK.requestPermissions();
+    status('تم منح الإذن');
+  } catch (e) {
+    console.error(e);
+    status('تعذّر منح الإذن — راجع إعدادات المتصفح');
+  }
+});
+
+btnPublish.addEventListener('click', async () => {
+  try {
+    await window.LK.publishToRoom(currentRoom);
+    status(`تم النشر في ${currentRoom}`);
+  } catch (e) {
+    console.error(e);
+    status('تعذّر النشر — تحقّق من صلاحيات الكاميرا/المايك والتوكن');
+  }
+});
+
+btnStop.addEventListener('click', async () => {
+  try {
+    await window.LK.stopPublishing();
+    status('تم الإيقاف');
+  } catch (e) {
+    console.error(e);
+    status('لا يوجد نشر نشط');
+  }
+});

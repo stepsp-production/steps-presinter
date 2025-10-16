@@ -5,61 +5,30 @@ import { AccessToken } from '@livekit/server-sdk';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
-
-// بيئة التشغيل
-const LIVEKIT_API_KEY    = process.env.LIVEKIT_API_KEY    || '';
-const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || '';
-const LIVEKIT_HOST       = process.env.LIVEKIT_HOST       || ''; // مثل: wss://your-instance.livekit.cloud
-
-// صحة التهيئة
-if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_HOST) {
-  console.warn('[WARN] LIVEKIT_API_KEY / LIVEKIT_API_SECRET / LIVEKIT_HOST غير مضبوطة. اضبطها كمتغيرات بيئة.');
-}
-
-// راوت صحيّة
-app.get('/health', (req, res) => {
-  res.json({ ok: true, host: LIVEKIT_HOST || null });
-});
-
-// راوت إصدار التوكن: GET /token?room=room-1&identity=test123
 app.get('/token', async (req, res) => {
   try {
-    const roomName  = req.query.room;
-    const identity  = req.query.identity;
+    const { room, identity } = req.query;
+    if (!room || !identity) return res.status(400).json({ error: 'room & identity required' });
 
-    if (!roomName || !identity) {
-      return res.status(400).json({ error: 'Missing room or identity query params' });
-    }
-    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_HOST) {
-      return res.status(500).json({ error: 'Server not configured: set LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_HOST' });
+    // ضع مفاتيح LiveKit الخاصة بك
+    const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
+    const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
+    const LIVEKIT_URL = process.env.LIVEKIT_URL; // مثل: wss://<your>.livekit.cloud
+
+    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
+      return res.status(500).json({ error: 'Missing LiveKit envs' });
     }
 
     const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity });
-    at.addGrant({
-      roomJoin: true,
-      room: roomName,
-      canPublish: true,
-      canSubscribe: true,
-      // لو تريد السماح بالمشاركة من المتصفح:
-      canPublishData: true,
-    });
-
+    at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true });
     const token = await at.toJwt();
 
-    // واجهة الـFrontend تتوقع url + token
-    res.json({
-      url: LIVEKIT_HOST, // مثال: wss://your-instance.livekit.cloud
-      token,
-    });
+    res.json({ url: LIVEKIT_URL, token });
   } catch (e) {
-    console.error('token error:', e);
-    res.status(500).json({ error: 'failed to create token' });
+    console.error(e);
+    res.status(500).json({ error: 'token error' });
   }
 });
 
-// تشغيل
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`LiveKit token server listening on :${PORT}`);
-});
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log('Token server on :' + port));

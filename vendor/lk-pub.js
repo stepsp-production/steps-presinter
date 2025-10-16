@@ -1,83 +1,86 @@
-// lk-pub.js — الاقتران + الانضمام + النشر بـ LiveKit (UMD)
+// /vendor/lk-pub.js
+(function () {
+  const TokenURL = 'https://steps-livekit-api.onrender.com/token';
 
-(function(){
-  const { Room, createLocalTracks, RoomEvent, setLogLevel, LogLevel } = window.livekitClient || {};
-  setLogLevel?.(LogLevel?.warn ?? 'warn');
+  let room = null;
+  let localTracks = [];
 
-  function errUser(message){ const e = new Error(message); e.userMessage = message; return e; }
-
-  async function fetchToken(tokenApi, room, identity){
-    const u = new URL(tokenApi);
-    u.searchParams.set('room', room);
-    u.searchParams.set('identity', identity);
-    const res = await fetch(u.toString(), { cache: 'no-store' });
-    if (!res.ok) throw errUser('فشل طلب التوكن من الخادم ('+res.status+')');
-    return res.json(); // { url, token }
-  }
-
-  function LiveKitPublisher({ statusEl, Livekit, tokenApi }){
-    this.statusEl = statusEl;
-    this.Livekit = Livekit;
-    this.tokenApi = tokenApi;
-    this.room = null;
-    this.localTracks = [];
-    this.devicesPaired = false;
-    this._set('LiveKit: غير متصل');
-  }
-
-  LiveKitPublisher.prototype._set = function(txt){ if (this.statusEl) this.statusEl.textContent = txt; };
-
-  LiveKitPublisher.prototype.pairDevices = async function(){
-    try {
-      this.localTracks = await createLocalTracks({
-        audio: { echoCancellation: true, noiseSuppression: true },
-        video: { facingMode: 'user', resolution: { width: 1280, height: 720 } }
+  async function requestPermissions() {
+    // اطلب صلاحيات الكاميرا والميك
+    await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+      .then(stream => {
+        // أغلق التراكات فورًا — الهدف إثبات الإذن فقط
+        stream.getTracks().forEach(t => t.stop());
       });
-      this.devicesPaired = true;
-      this._set('LiveKit: الأجهزة مُقترنة');
-    } catch (e) {
-      throw errUser('تعذّر الوصول إلى الكاميرا/المايك. يرجى منح الإذن ثم إعادة المحاولة.');
+  }
+
+  async function ensureLocalTracks() {
+    if (localTracks.length) return localTracks;
+    const { createLocalTracks } = window.LivekitClient || window.livekitClient || window.LiveKitClient || {};
+    const tracks = await createLocalTracks({ audio: true, video: { facingMode: 'user' } });
+    localTracks = tracks;
+    return tracks;
+  }
+
+  async function fetchToken(identity, roomName) {
+    const url = `${TokenURL}?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`;
+    const res = await fetch(url, { credentials: 'omit' });
+    if (!res.ok) {
+      throw new Error('Token endpoint error: ' + res.status);
     }
-  };
+    const json = await res.json();
+    if (!json?.url || !json?.token) throw new Error('Invalid token response');
+    return json;
+  }
 
-  LiveKitPublisher.prototype.joinAndPublish = async function({ room, identity }){
-    if (!this.devicesPaired) throw errUser('يجب الاقتران أولاً قبل النشر.');
-    if (!room) throw errUser('لم يتم اختيار الغرفة.');
-    if (!identity) throw errUser('مطلوب اسم الهوية.');
+  async function publishToRoom(roomName) {
+    const { Room, RoomEvent } = window.LivekitClient || window.livekitClient || window.LiveKitClient || {};
+    if (!Room) throw new Error('LiveKit client not loaded yet');
 
-    const { url, token } = await fetchToken(this.tokenApi, room, identity);
-    if (!url || !token) throw errUser('الاستجابة لا تحتوي url/token.');
+    const identity = 'web-' + Math.random().toString(36).slice(2, 8);
+    const { url, token } = await fetchToken(identity, roomName);
 
-    this.room = new Room({
-      adaptiveStream: true,
-      dynacast: true,
-      stopLocalTrackOnUnpublish: true,
-      publishDefaults: { simulcast: true, videoCodec: 'vp9' }
+    // أوقف أي جلسة سابقة
+    if (room) {
+      try { await room.disconnect(); } catch (e) {}
+      room = null;
+    }
+
+    // أنشئ غرفة واتصل
+    room = new Room();
+    await room.connect(url, token);
+
+    // أنشئ التراكات المحلية وانشرها
+    const tracks = await ensureLocalTracks();
+    for (const t of tracks) {
+      await room.localParticipant.publishTrack(t);
+    }
+
+    // مراقبة الأحداث
+    room.on(RoomEvent.Disconnected, () => {
+      console.log('[LK] Disconnected');
     });
+  }
 
-    this.room.on(RoomEvent.Disconnected, ()=> this._set('LiveKit: غير متصل'));
-    this.room.on(RoomEvent.Connected,   ()=> this._set('LiveKit: متصل'));
-    await this.room.connect(url, token);
-
-    for (const t of this.localTracks) {
-      await this.room.localParticipant.publishTrack(t);
-    }
-    this._set('LiveKit: تم النشر');
-  };
-
-  LiveKitPublisher.prototype.stop = async function(){
+  async function stopPublishing() {
+    if (!room) return;
     try {
-      if (this.room) {
-        await this.room.disconnect();
-      }
+      // إلغاء نشر التراكات
+      room.localParticipant.tracks.forEach(pub => {
+        try { pub.track?.stop(); } catch (e) {}
+        try { pub.unpublish(); } catch (e) {}
+      });
+      await room.disconnect();
     } finally {
-      this.room = null;
-      for (const t of this.localTracks) { try { t.stop(); } catch{} }
-      this.localTracks = [];
-      this.devicesPaired = false;
-      this._set('LiveKit: غير متصل');
+      room = null;
+      localTracks.forEach(t => { try { t.stop(); } catch (e) {} });
+      localTracks = [];
     }
-  };
+  }
 
-  window.LiveKitPublisher = LiveKitPublisher;
+  window.LK = {
+    requestPermissions,
+    publishToRoom,
+    stopPublishing,
+  };
 })();

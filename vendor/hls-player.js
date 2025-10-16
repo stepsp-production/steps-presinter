@@ -1,31 +1,15 @@
-// /vendor/hls-player.js
-(function () {
-  window.HlsPlayer = {
-    attach(videoEl, src) {
-      if (!window.Hls || !window.Hls.isSupported()) {
-        videoEl.src = src;
-        videoEl.play?.().catch(()=>{});
-        return () => {};
-      }
-      let hls = new window.Hls({ enableWorker: true, lowLatencyMode: true });
-      function onErr(_, data){
-        console.log('[HLS] ERROR', data);
-        if (data?.type === window.Hls.ErrorTypes.MEDIA_ERROR &&
-            data?.details === window.Hls.ErrorDetails.FRAG_PARSING_ERROR) {
-          try {
-            hls.destroy();
-            hls = new window.Hls({ enableWorker: false, lowLatencyMode: true });
-            hls.on(window.Hls.Events.ERROR, onErr);
-            hls.attachMedia(videoEl);
-            hls.loadSource(src);
-          } catch(e){}
-        }
-      }
-      hls.on(window.Hls.Events.ERROR, onErr);
-      hls.attachMedia(videoEl);
-      hls.loadSource(src);
-      videoEl.play?.().catch(()=>{});
-      return () => { try { hls.destroy(); } catch(e){} };
+(function(global){
+  'use strict';
+  function attach(video, url, cfg){
+    if(!global.Hls || !global.Hls.isSupported()){
+      // iOS Safari أو تشغيل مباشر
+      if(video && url) video.src = url;
+      return null;
     }
-  };
-})();
+    const hls = new global.Hls(cfg||{});
+    hls.attachMedia(video);
+    hls.on(global.Hls.Events.MEDIA_ATTACHED, ()=> hls.loadSource(url));
+    return hls;
+  }
+  global.HlsPlayer = { attach };
+})(window);

@@ -5,82 +5,61 @@
   let room = null;
   let localTracks = [];
 
-  async function requestPermissions() {
-    // اطلب صلاحيات الكاميرا والميك
-    await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-      .then(stream => {
-        // أغلق التراكات فورًا — الهدف إثبات الإذن فقط
-        stream.getTracks().forEach(t => t.stop());
-      });
+  async function pairDevices() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
+    stream.getTracks().forEach(t => t.stop()); // إثبات الإذن فقط
   }
 
-  async function ensureLocalTracks() {
+  async function ensureTracks() {
+    const { createLocalTracks } = (window.LivekitClient || {});
+    if (!createLocalTracks) throw new Error('LiveKit not ready');
     if (localTracks.length) return localTracks;
-    const { createLocalTracks } = window.LivekitClient || window.livekitClient || window.LiveKitClient || {};
-    const tracks = await createLocalTracks({ audio: true, video: { facingMode: 'user' } });
-    localTracks = tracks;
-    return tracks;
+    localTracks = await createLocalTracks({ audio:true, video:{ facingMode:'user' } });
+    return localTracks;
   }
 
   async function fetchToken(identity, roomName) {
-    const url = `${TokenURL}?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`;
-    const res = await fetch(url, { credentials: 'omit' });
-    if (!res.ok) {
-      throw new Error('Token endpoint error: ' + res.status);
-    }
-    const json = await res.json();
-    if (!json?.url || !json?.token) throw new Error('Invalid token response');
-    return json;
+    const u = `${TokenURL}?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`;
+    const r = await fetch(u);
+    if (!r.ok) throw new Error('Token endpoint error: '+r.status);
+    const j = await r.json();
+    if (!j?.url || !j?.token) throw new Error('Invalid token response');
+    return j;
   }
 
-  async function publishToRoom(roomName) {
-    const { Room, RoomEvent } = window.LivekitClient || window.livekitClient || window.LiveKitClient || {};
-    if (!Room) throw new Error('LiveKit client not loaded yet');
-
-    const identity = 'web-' + Math.random().toString(36).slice(2, 8);
+  async function publish(roomName) {
+    const { Room, RoomEvent } = (window.LivekitClient || {});
+    if (!Room) throw new Error('LiveKit not ready');
+    const identity = 'web-' + Math.random().toString(36).slice(2,8);
     const { url, token } = await fetchToken(identity, roomName);
 
-    // أوقف أي جلسة سابقة
-    if (room) {
-      try { await room.disconnect(); } catch (e) {}
-      room = null;
-    }
-
-    // أنشئ غرفة واتصل
+    if (room) { try { await room.disconnect(); } catch(e){} room = null; }
     room = new Room();
     await room.connect(url, token);
 
-    // أنشئ التراكات المحلية وانشرها
-    const tracks = await ensureLocalTracks();
-    for (const t of tracks) {
-      await room.localParticipant.publishTrack(t);
-    }
+    const tracks = await ensureTracks();
+    for (const t of tracks) await room.localParticipant.publishTrack(t);
 
-    // مراقبة الأحداث
-    room.on(RoomEvent.Disconnected, () => {
-      console.log('[LK] Disconnected');
-    });
+    room.on(RoomEvent.Disconnected, ()=> console.log('[LK] disconnected'));
   }
 
-  async function stopPublishing() {
+  async function stopPublish() {
     if (!room) return;
     try {
-      // إلغاء نشر التراكات
       room.localParticipant.tracks.forEach(pub => {
-        try { pub.track?.stop(); } catch (e) {}
-        try { pub.unpublish(); } catch (e) {}
+        try { pub.track?.stop(); } catch(e){}
+        try { pub.unpublish(); } catch(e){}
       });
       await room.disconnect();
     } finally {
       room = null;
-      localTracks.forEach(t => { try { t.stop(); } catch (e) {} });
+      localTracks.forEach(t => { try { t.stop(); } catch(e){} });
       localTracks = [];
     }
   }
 
-  window.LK = {
-    requestPermissions,
-    publishToRoom,
-    stopPublishing,
-  };
+  // حافظ على نفس الأسماء التي تستدعيها واجهتك
+  window.pairDevices = pairDevices;
+  window.publish = publish;
+  window.stopPublish = stopPublish;
 })();

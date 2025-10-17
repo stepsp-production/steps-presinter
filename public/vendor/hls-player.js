@@ -1,15 +1,18 @@
-(function(global){
-  'use strict';
-  function attach(video, url, cfg){
-    if(!global.Hls || !global.Hls.isSupported()){
-      // iOS Safari أو تشغيل مباشر
-      if(video && url) video.src = url;
+/* مُغلِّف صغير لـ hls.min.js */
+(function (g) {
+  g.createHls = function (video, url, cfg) {
+    if (g.Hls && g.Hls.isSupported()) {
+      const h = new g.Hls(cfg || {});
+      h.attachMedia(video);
+      h.on(g.Hls.Events.MEDIA_ATTACHED, () => h.loadSource(url));
+      return h;
+    }
+    // أجهزة Apple
+    if (video && video.canPlayType && video.canPlayType('application/vnd.apple.mpegURL')) {
+      video.src = url;
       return null;
     }
-    const hls = new global.Hls(cfg||{});
-    hls.attachMedia(video);
-    hls.on(global.Hls.Events.MEDIA_ATTACHED, ()=> hls.loadSource(url));
-    return hls;
-  }
-  global.HlsPlayer = { attach };
+    console.warn('Hls.js غير متوفر أو غير مدعوم على هذا المتصفح.');
+    return null;
+  };
 })(window);

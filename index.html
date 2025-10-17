@@ -2,13 +2,11 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>لوحة البث المتعدد</title>
 
-  <!-- CSP صار يسمح بالـCDN والـWorkers والاتصال بسيرفر التوكن وLiveKit -->
+  <!-- CSP محدثة: تسمح بالـblob workers، ملفات vendor المحلية، والـCDN اختياريًا -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
-    script-src  'self' https://cdn.jsdelivr.net https://unpkg.com;
+    script-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
     style-src   'self' 'unsafe-inline';
     img-src     'self' data:;
     font-src    'self' data:;
@@ -23,10 +21,12 @@
     child-src   'self' blob:;
   ">
 
-  <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)" />
+  <!-- صلاحيات الكاميرا/الميكروفون -->
+  <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
 
-  <!-- أيقونة -->
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
+  <!-- أيقونة بسيطة -->
+  <link rel="icon"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
   <style>
     :root{
@@ -39,19 +39,22 @@
     #playerContainer{position:relative;width:100vw;height:100vh}
     .videoFrame{position:absolute;top:0;right:0;width:100%;height:100%;background:#000;overflow:hidden}
 
-    /* المعاينة المصغرة */
+    /* المعاينة المصغّرة */
     #mainPreview{position:absolute;top:16px;right:20px;width:22%;height:24%;z-index:6;border:1px solid #fff2;border-radius:18px;cursor:pointer;transition:transform .18s,box-shadow .18s,width .18s,height .18s,top .18s,right .18s,left .18s}
     #mainPreview:hover{box-shadow:0 10px 30px #0008}
     #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
 
-    /* التقسيم (MAIN يمين دائمًا) */
+    /* تقسيم (MAIN يمين دائمًا) */
     .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
     .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
 
-    /* أوضاع المحتوى */
-    .split.mode1 #mainPreview video, .split.mode1 #activeCam video{object-fit:contain;transform:none}
-    .split.mode2 #mainPreview video, .split.mode2 #activeCam video{object-fit:contain;transform:scale(1.08);transform-origin:center}
-    .split.mode3 #mainPreview video, .split.mode3 #activeCam video{object-fit:cover;transform:none}
+    /* أوضاع التقسيم */
+    .split.mode1 #mainPreview video,
+    .split.mode1 #activeCam  video{object-fit:contain}
+    .split.mode2 #mainPreview video,
+    .split.mode2 #activeCam  video{object-fit:contain; transform:scale(1.08); transform-origin:center}
+    .split.mode3 #mainPreview video,
+    .split.mode3 #activeCam  video{object-fit:cover}
 
     /* تكبير المعاينة */
     .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
@@ -61,10 +64,10 @@
     .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
     .split .hint,.main-full .hint{display:none}
 
-    /* الأشرطة/الأزرار + إخفاء تلقائي */
-    #utilityControls,#globalControls,#chrome{position:absolute;z-index:12;transition:opacity .18s}
-    #utilityControls{top:10px;right:10px;display:flex;gap:8px;flex-wrap:wrap}
-    #globalControls{bottom:70px;left:50%;transform:translateX(-50%);display:flex;gap:8px;flex-wrap:wrap;background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
+    /* أشرطة/أزرار + إخفاء تلقائي */
+    #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
+    #utilityControls{top:10px;right:10px}
+    #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
     #globalControls.hidden{display:none}
 
     button{-webkit-tap-highlight-color:transparent;appearance:none;border:0;outline:0;cursor:pointer;background:var(--btn-bg);color:var(--btn-txt);padding:11px 12px;font-size:12px;font-weight:800;border-radius:12px;letter-spacing:.2px;display:inline-flex;align-items:center;gap:8px;box-shadow:0 8px 18px #000a,0 0 0 0 rgba(0,193,154,.28);transition:transform .12s,box-shadow .12s,background .12s}
@@ -82,22 +85,21 @@
     #startBtn{min-width:160px}
 
     /* القائمة الجانبية */
-    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; pointer-events:auto;}
+    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;}
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
-    .stream-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer;background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20);backdrop-filter: blur(2px);transition:background .12s, border-color .12s, transform .06s;}
+    .stream-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20); backdrop-filter: blur(2px); transition:background .12s, border-color .12s, transform .06s;}
     .stream-item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
     .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
     .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
 
+    /* إخفاء واجهة التحكم تلقائيًا */
     .ui-hidden #streamPanel,
     .ui-hidden #utilityControls,
-    .ui-hidden #globalControls,
-    .ui-hidden #chrome{opacity:0; pointer-events:none}
+    .ui-hidden #globalControls{opacity:0; pointer-events:none}
     .ui-visible #streamPanel,
     .ui-visible #utilityControls,
-    .ui-visible #globalControls,
-    .ui-visible #chrome{opacity:1; pointer-events:auto}
+    .ui-visible #globalControls{opacity:1; pointer-events:auto}
 
     .layer{position:absolute; inset:0;}
     .fade-in{animation:fadeIn .18s ease forwards}
@@ -112,19 +114,20 @@
       #streamPanel{width:190px}
     }
 
-    /* شريط LiveKit أعلى اليسار */
-    .chrome{top:14px;left:14px}
-    .bar{display:flex;gap:10px;background:#0b0b0fe6;border:1px solid #ffffff26;border-radius:14px;padding:10px 12px;align-items:center}
-    .bar .field{display:flex;align-items:center;gap:6px}
-    .bar label{color:#fff;font-size:12px}
-    .bar input,.bar select{height:34px;border-radius:10px;border:1px solid #ffffff26;background:#0d0f14;color:#fff;padding:0 10px}
-    .btn.ok{background:#16a34a} .btn.warn{background:#f97316}
-    .pill{background:#10151a;border:1px solid #ffffff26;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px}
+    /* شريط LiveKit */
+    .chrome{position:fixed;top:12px;inset-inline:12px;z-index:20}
+    .bar{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:16px;padding:10px;display:flex;gap:10px;align-items:center}
+    .field{display:flex;align-items:center;gap:6px}
+    .btn{padding:10px 12px;border-radius:10px}
+    .ok{background:#0fb}
+    .warn{background:#f66}
+    .pill{background:#1118;padding:6px 10px;border-radius:999px;border:1px solid #fff2;color:#fff}
+    input,select{padding:8px 10px;border-radius:10px;border:1px solid #fff3;background:#111a;color:#fff;min-width:160px}
   </style>
 </head>
+
 <body>
   <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
-
     <!-- القائمة الجانبية -->
     <aside id="streamPanel" aria-label="مصادر البث">
       <div class="panel-title">SOURCES</div>
@@ -164,9 +167,11 @@
     </div>
   </div>
 
-  <!-- شريط LiveKit -->
-  <div class="chrome" id="chrome" style="position:fixed;">
+  <!-- شريط LiveKit (الغرف، الاسم، اقتران/نشر) -->
+  <div class="chrome" id="chrome">
     <div class="bar">
+      <h1 style="margin-inline-end:8px">لوحة البث المتعدد</h1>
+
       <div class="field">
         <label>الغرفة:</label>
         <select id="roomSel">
@@ -177,20 +182,59 @@
           <option value="room-9">room-9</option><option value="room-10">room-10</option>
         </select>
       </div>
+
       <div class="field">
-        <label>الاسم/الهوية:</label>
+        <label>الهوية/الاسم:</label>
         <input id="displayName" placeholder="اسم المتحدث" />
       </div>
+
       <button id="pairBtn" class="btn">سماح (اقتران)</button>
       <button id="publishBtn" class="btn ok" disabled>تشغيل (نشر)</button>
       <button id="stopBtn" class="btn warn" disabled>إيقاف</button>
+
       <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
     </div>
   </div>
 
-  <!-- مكتبات UMD من CDN (لا سكربتات inline) -->
-  <script defer src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js"></script>
-  <script defer src="/app.js"></script>
+  <!-- توجيه عبر ورَكر -->
+  <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
+
+  <!-- مصادر البث (كما كانت) -->
+  <script>
+    (function(){
+      const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
+      const build=(p)=>BASE?`${BASE}${p}`:p;
+      window.sources={
+        main:build("/hls/live/playlist.m3u8"),
+        cam1:build("/hls/lastone/playlist.m3u8"),
+        cam2:build("/hls/live2/playlist.m3u8"),
+        cam3:build("/hls/live3/playlist.m3u8"),
+        cam4:build("/hls/live4/playlist.m3u8"),
+        cam5:build("/hls/live5/playlist.m3u8"),
+        cam6:build("/hls/live6/playlist.m3u8"),
+        cam7:build("/hls/live7/playlist.m3u8")
+      };
+      window.channelMap=[
+        {id:'main',label:'MAIN',src:sources.main},
+        {id:'cam1',label:'Cam1',src:sources.cam1},
+        {id:'cam2',label:'Cam2',src:sources.cam2},
+        {id:'cam3',label:'Cam3',src:sources.cam3},
+        {id:'cam4',label:'Cam4',src:sources.cam4},
+        {id:'cam5',label:'Cam5',src:sources.cam5},
+        {id:'cam6',label:'Drone',src:sources.cam6},
+        {id:'cam7',label:'Sineflex',src:sources.cam7},
+      ];
+    })();
+  </script>
+
+  <!-- تحميل مكتبات vendor محليًا (لا تستخدم import modules) -->
+  <script src="/vendor/hls.min.js" defer></script>
+  <script src="/vendor/hls-player.js" defer></script>
+  <script src="/vendor/livekit-client.umd.min.js" defer></script>
+  <script src="/vendor/utils.js" defer></script>
+  <script src="/vendor/lk-pub.js" defer></script>
+
+  <!-- التطبيق -->
+  <script src="/app.js" defer></script>
 </body>
 </html>

@@ -227,9 +227,50 @@
     })();
   </script>
 
-<script src="/vendor/hls.min.js" defer></script>
+<!-- بدل هذه: 
+<script src="/vendor/hls.min.js" defer></script> 
 <script src="/vendor/livekit-client.umd.min.js" defer></script>
 <script src="/app.js" defer></script>
+-->
+
+<script>
+  // تحميل سكربت مع Fallback إلى CDN
+  function loadScript(src, fallback) {
+    return new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.defer = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => {
+        if (!fallback) return resolve(false);
+        const f = document.createElement('script');
+        f.src = fallback;
+        f.defer = true;
+        f.onload = () => resolve(true);
+        f.onerror = () => resolve(false);
+        document.head.appendChild(f);
+      };
+      document.head.appendChild(s);
+    });
+  }
+
+  (async () => {
+    // 1) HLS: محلي ثم CDN
+    await loadScript(
+      '/vendor/hls.min.js',
+      'https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js'
+    );
+
+    // 2) LiveKit UMD: محلي ثم CDN
+    await loadScript(
+      '/vendor/livekit-client.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js'
+    );
+
+    // 3) التطبيق بعد توفر المكتبات
+    await loadScript('/app.js');
+  })();
+</script>
 
 </body>
 </html>

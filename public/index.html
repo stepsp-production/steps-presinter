@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
 
-  <!-- CSP محدثة: تسمح بالـblob workers، ملفات vendor المحلية، والـCDN اختياريًا -->
+  <!-- CSP كما طلبت + تسمح CDN و blob workers -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
@@ -21,10 +21,8 @@
     child-src   'self' blob:;
   ">
 
-  <!-- صلاحيات الكاميرا/الميكروفون -->
   <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
 
-  <!-- أيقونة بسيطة -->
   <link rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
@@ -39,16 +37,13 @@
     #playerContainer{position:relative;width:100vw;height:100vh}
     .videoFrame{position:absolute;top:0;right:0;width:100%;height:100%;background:#000;overflow:hidden}
 
-    /* المعاينة المصغّرة */
     #mainPreview{position:absolute;top:16px;right:20px;width:22%;height:24%;z-index:6;border:1px solid #fff2;border-radius:18px;cursor:pointer;transition:transform .18s,box-shadow .18s,width .18s,height .18s,top .18s,right .18s,left .18s}
     #mainPreview:hover{box-shadow:0 10px 30px #0008}
     #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
 
-    /* تقسيم (MAIN يمين دائمًا) */
     .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
     .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
 
-    /* أوضاع التقسيم */
     .split.mode1 #mainPreview video,
     .split.mode1 #activeCam  video{object-fit:contain}
     .split.mode2 #mainPreview video,
@@ -56,7 +51,6 @@
     .split.mode3 #mainPreview video,
     .split.mode3 #activeCam  video{object-fit:cover}
 
-    /* تكبير المعاينة */
     .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
     .main-full #activeCam{display:none}
     .main-full.cover-one #mainPreview video{object-fit:cover}
@@ -64,7 +58,6 @@
     .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
     .split .hint,.main-full .hint{display:none}
 
-    /* أشرطة/أزرار + إخفاء تلقائي */
     #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
     #utilityControls{top:10px;right:10px}
     #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
@@ -84,7 +77,6 @@
     .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
     #startBtn{min-width:160px}
 
-    /* القائمة الجانبية */
     #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;}
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
@@ -93,7 +85,6 @@
     .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
     .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
 
-    /* إخفاء واجهة التحكم تلقائيًا */
     .ui-hidden #streamPanel,
     .ui-hidden #utilityControls,
     .ui-hidden #globalControls{opacity:0; pointer-events:none}
@@ -114,7 +105,6 @@
       #streamPanel{width:190px}
     }
 
-    /* شريط LiveKit */
     .chrome{position:fixed;top:12px;inset-inline:12px;z-index:20}
     .bar{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:16px;padding:10px;display:flex;gap:10px;align-items:center}
     .field{display:flex;align-items:center;gap:6px}
@@ -128,7 +118,6 @@
 
 <body>
   <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
-    <!-- القائمة الجانبية -->
     <aside id="streamPanel" aria-label="مصادر البث">
       <div class="panel-title">SOURCES</div>
       <ul id="streamList"></ul>
@@ -138,7 +127,6 @@
     <div id="mainPreview" class="videoFrame" title="انقر للتكبير/التصغير" aria-label="المعاينة الرئيسية المصغّرة"></div>
     <div class="hint">انقر على المعاينة للتكبير • أو اضغط F</div>
 
-    <!-- بوابة البدء -->
     <div id="gatePlay" role="dialog" aria-modal="true" aria-label="بدء التشغيل">
       <div class="gate-card">
         <div class="icon">▶</div>
@@ -150,14 +138,12 @@
       </div>
     </div>
 
-    <!-- أدوات -->
     <div id="utilityControls" role="toolbar" aria-label="أدوات">
       <button id="btnSplit" aria-label="تبديل وضع التقسيم" title="تقسيم">تقسيم</button>
       <button id="btnFill"  aria-label="تبديل ملء المحتوى" title="ملء">ملء</button>
       <button id="btnSound" aria-label="تشغيل/إيقاف الصوت" title="صوت">🔊/🔇</button>
     </div>
 
-    <!-- الشريط الموحّد -->
     <div id="globalControls" class="hidden" role="group" aria-label="تحكم موحّد">
       <button id="gBack" title="⏪ -5s">⏪ 5s</button>
       <button id="gPlay" title="⏯">⏯</button>
@@ -167,7 +153,7 @@
     </div>
   </div>
 
-  <!-- شريط LiveKit (الغرف، الاسم، اقتران/نشر) -->
+  <!-- شريط LiveKit -->
   <div class="chrome" id="chrome">
     <div class="bar">
       <h1 style="margin-inline-end:8px">لوحة البث المتعدد</h1>
@@ -196,10 +182,10 @@
     </div>
   </div>
 
-  <!-- توجيه عبر ورَكر -->
+  <!-- توجيه HLS عبر البروكسي كما لديك -->
   <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
 
-  <!-- مصادر البث (كما كانت) -->
+  <!-- مصادر البث (كما هي) -->
   <script>
     (function(){
       const BASE=(window.HLS_BASE||"").replace(/\/$/,"");
@@ -227,50 +213,33 @@
     })();
   </script>
 
-<!-- بدل هذه: 
-<script src="/vendor/hls.min.js" defer></script> 
-<script src="/vendor/livekit-client.umd.min.js" defer></script>
-<script src="/app.js" defer></script>
--->
+  <!-- مُحمّل بمسار محلي + CDN fallback ثم التطبيق -->
+  <script>
+    function loadScript(src, fallback) {
+      return new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = src; s.defer = true;
+        s.onload = () => resolve(true);
+        s.onerror = () => {
+          if (!fallback) return resolve(false);
+          const f = document.createElement('script');
+          f.src = fallback; f.defer = true;
+          f.onload = () => resolve(true);
+          f.onerror = () => resolve(false);
+          document.head.appendChild(f);
+        };
+        document.head.appendChild(s);
+      });
+    }
+    (async () => {
+      await loadScript('/vendor/hls.min.js',
+        'https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js');
 
-<script>
-  // تحميل سكربت مع Fallback إلى CDN
-  function loadScript(src, fallback) {
-    return new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = src;
-      s.defer = true;
-      s.onload = () => resolve(true);
-      s.onerror = () => {
-        if (!fallback) return resolve(false);
-        const f = document.createElement('script');
-        f.src = fallback;
-        f.defer = true;
-        f.onload = () => resolve(true);
-        f.onerror = () => resolve(false);
-        document.head.appendChild(f);
-      };
-      document.head.appendChild(s);
-    });
-  }
+      await loadScript('/vendor/livekit-client.umd.min.js',
+        'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js');
 
-  (async () => {
-    // 1) HLS: محلي ثم CDN
-    await loadScript(
-      '/vendor/hls.min.js',
-      'https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js'
-    );
-
-    // 2) LiveKit UMD: محلي ثم CDN
-    await loadScript(
-      '/vendor/livekit-client.umd.min.js',
-      'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js'
-    );
-
-    // 3) التطبيق بعد توفر المكتبات
-    await loadScript('/app.js');
-  })();
-</script>
-
+      await loadScript('/app.js');
+    })();
+  </script>
 </body>
 </html>

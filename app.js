@@ -261,8 +261,8 @@ let lkRoom=null;
 let localTracks=[];
 
 function setLKStatus(txt){ lkStatus.textContent = txt; }
-function ensureSDK(){
-  if(!LK || !LK.Room || !LK.createLocalTracks){
+function ensureSDK() {
+  if (!LK || !LK.Room || !LK.createLocalTracks) {
     alert('LiveKit SDK غير مُحمّل — تأكد من وسم الـCDN في index.html.');
     return false;
   }

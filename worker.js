@@ -1,43 +1,44 @@
-// worker.js
+// Cloudflare Worker: يولّد JWT LiveKit بدون @livekit/server-sdk
+// أضف الأسرار في wrangler.toml أو Dashboard: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
+import { SignJWT } from 'jose';
+
 export default {
-  async fetch(request, env, ctx) {
-    const origin = 'https://dpi-magic-professionals-findings.trycloudflare.com'; // نفس نفقك
-    const inUrl = new URL(request.url);
-    const outUrl = new URL(origin);
-    outUrl.pathname = inUrl.pathname;
-    outUrl.search   = inUrl.search;
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.pathname === '/token') {
+      const room = url.searchParams.get('room') || (await request.json().catch(()=>({})) ).room;
+      const identity = url.searchParams.get('identity') || (await request.json().catch(()=>({})) ).identity;
+      if (!room || !identity) return new Response(JSON.stringify({error:'missing room/identity'}), {status:400});
 
-    const fwd = new Headers(request.headers);
-    // منع الضغط/التحويل
-    fwd.set('Accept-Encoding', 'identity');
-    fwd.set('Cache-Control', 'no-cache, no-store, must-revalidate, no-transform');
+      const apiKey = env.LIVEKIT_API_KEY;
+      const apiSecret = env.LIVEKIT_API_SECRET;
+      const lkUrl = env.LIVEKIT_URL; // مثل: wss://your-instance.livekit.cloud
+      if(!apiKey || !apiSecret || !lkUrl) return new Response(JSON.stringify({error:'missing env'}), {status:500});
 
-    const init = {
-      method: request.method,
-      headers: fwd,
-      body: (request.method === 'GET' || request.method === 'HEAD') ? undefined : await request.blob(),
-      cf: { cacheTtl: 0, cacheEverything: false },
-    };
+      // Video grant لــ LiveKit
+      const videoGrant = {
+        room,
+        roomJoin: true,
+        canPublish: true,
+        canSubscribe: true
+      };
 
-    const upstream = await fetch(outUrl.toString(), init);
-    const path = outUrl.pathname;
-    const h = new Headers(upstream.headers);
+      const now = Math.floor(Date.now()/1000);
+      const payload = {
+        vid: videoGrant, // claim خاص LiveKit
+        sub: identity,
+        name: identity,
+        iat: now,
+        exp: now + 60 * 60, // صالح ساعة
+        iss: apiKey
+      };
 
-    // أنواع صحيحة
-    if (path.endsWith('.m3u8')) h.set('content-type', 'application/vnd.apple.mpegurl');
-    else if (path.endsWith('.ts')) h.set('content-type', 'video/mp2t');
+      const token = await new SignJWT(payload)
+        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+        .sign(new TextEncoder().encode(apiSecret));
 
-    // لا ضغط ولا تحويل
-    h.delete('content-encoding');
-    h.set('cache-control', 'no-cache, no-store, must-revalidate, no-transform');
-    h.set('pragma', 'no-cache');
-    h.set('expires', '0');
-    h.set('access-control-allow-origin', '*');
-
-    return new Response(upstream.body, {
-      status: upstream.status,
-      statusText: upstream.statusText,
-      headers: h,
-    });
+      return new Response(JSON.stringify({ url: lkUrl, token }), {headers:{'content-type':'application/json'}});
+    }
+    return new Response(JSON.stringify({ok:true}), {headers:{'content-type':'application/json'}});
   }
-};
+}

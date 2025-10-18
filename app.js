@@ -261,6 +261,7 @@ document.addEventListener('keydown',(e)=>{
 
 /* ===== LiveKit: اقتران/نشر ===== */
 const LK = window.Livekit || window.LiveKit || window.livekit || window.LiveKitClient;
+/* ===== LiveKit: اقتران/نشر (محسّن) ===== */
 const roomSel = document.getElementById('roomSel');
 const displayName = document.getElementById('displayName');
 const pairBtn = document.getElementById('pairBtn');
@@ -268,25 +269,54 @@ const publishBtn = document.getElementById('publishBtn');
 const stopBtn = document.getElementById('stopBtn');
 const lkStatus = document.getElementById('lkStatus');
 
-let lkRoom=null;
-let localTracks=[];  // [cameraTrack, micTrack]
+let lkRoom = null;
+let localTracks = [];    // [LocalVideoTrack, LocalAudioTrack] إن وُجد SDK
+let gumStream = null;    // MediaStream احتياطي لو SDK غير جاهز
 
 function setLKStatus(txt){ lkStatus.textContent = txt; }
-function sdkReady(){
-  return !!(LK && LK.Room && LK.createLocalTracks && LK.RoomEvent);
+function getLK() {
+  return (window.LiveKit || window.Livekit || window.livekit || window.LiveKitClient || null);
 }
 
+// انتظر SDK حتى 3 ثواني كحدّ أقصى
+function waitForSDK(timeout = 3000){
+  return new Promise((res)=> {
+    const t0 = performance.now();
+    (function loop(){
+      const LK = getLK();
+      if (LK && LK.Room && LK.createLocalTracks && LK.RoomEvent) return res(LK);
+      if (performance.now() - t0 > timeout) return res(null);
+      setTimeout(loop, 80);
+    })();
+  });
+}
+
+// اقتران: إن وُجد SDK استخدم createLocalTracks، وإلا فعلى الأقل نطلب إذن GUM لكي تُفعّل الأذونات
 pairBtn.addEventListener('click', async () => {
   try{
-    if(!sdkReady()){ alert('LiveKit SDK غير محمّل (vendor/livekit-client.umd.min.js)'); return; }
-    setLKStatus('طلب أذونات…');
-    localTracks.forEach(t=>{try{t.stop();}catch(_){}}); localTracks=[];
-    const tracks = await LK.createLocalTracks({
-      audio: true,
-      video: { facingMode: 'user', resolution: LK.VideoPresets.h720 }
-    });
-    localTracks = tracks;
-    setLKStatus('جاهز للنشر');
+    setLKStatus('التحقّق من SDK…');
+    const LK = await waitForSDK();
+
+    // أوقف أي موارد سابقة
+    try{ localTracks.forEach(t=>t.stop()); }catch(_){}
+    localTracks = [];
+    try{ if (gumStream) { gumStream.getTracks().forEach(t=>t.stop()); gumStream=null; } }catch(_){}
+
+    if (LK) {
+      setLKStatus('طلب أذونات…');
+      const tracks = await LK.createLocalTracks({
+        audio: true,
+        video: { facingMode: 'user', resolution: (LK.VideoPresets && LK.VideoPresets.h720) || undefined }
+      });
+      localTracks = tracks;
+      setLKStatus('جاهز للنشر');
+    } else {
+      // SDK غير جاهز: خذ أذونات على الأقل حتى لا يفشل النشر لاحقاً
+      setLKStatus('طلب أذونات (GUM)…');
+      gumStream = await navigator.mediaDevices.getUserMedia({ audio:true, video:true });
+      setLKStatus('جاهز للنشر (SDK قيد التحميل)…');
+    }
+
     publishBtn.disabled = false;
     stopBtn.disabled = false;
   }catch(err){
@@ -296,40 +326,50 @@ pairBtn.addEventListener('click', async () => {
   }
 });
 
+// جلب توكن من أكثر من مصدر
 async function getToken(roomName, identity){
-  // 1) حاول سيرفر Render
+  // 1) Render
   try{
-    const r1 = await fetch(`https://steps-livekit-api.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`);
-    if(r1.ok){ return r1.json(); }
-  }catch(_) {}
-  // 2) الحل البديل: Cloudflare Worker (بدّله بعنوان العامل الخاص بك)
+    const r1 = await fetch(`https://steps-livekit-api.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`, { mode:'cors' });
+    if(r1.ok) return r1.json();
+  }catch(_){}
+  // 2) Worker بديل (إن فعّلته)
   try{
-    const r2 = await fetch(`https://lk-token.your-worker.workers.dev/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`);
-    if(r2.ok){ return r2.json(); }
-  }catch(_) {}
-  // 3) POST كفرصة أخيرة على Render
+    const r2 = await fetch(`https://lk-token.your-worker.workers.dev/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`, { mode:'cors' });
+    if(r2.ok) return r2.json();
+  }catch(_){}
+  // 3) POST كاحتمال أخير على Render
   try{
     const r3 = await fetch('https://steps-livekit-api.onrender.com/token', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ room: roomName, identity })
+      body: JSON.stringify({ room: roomName, identity }), mode:'cors'
     });
-    if(r3.ok){ return r3.json(); }
-  }catch(_) {}
+    if(r3.ok) return r3.json();
+  }catch(_){}
   return null;
 }
 
 publishBtn.addEventListener('click', async () => {
-  if(!sdkReady()) return alert('LiveKit SDK غير محمَّل.');
   try{
     publishBtn.disabled = true;
+
     const roomName = roomSel.value || 'room-1';
     const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2,8));
-    setLKStatus('جلب توكن…');
 
+    setLKStatus('التحقّق من SDK…');
+    const LK = await waitForSDK();
+    if (!LK) {
+      publishBtn.disabled = false;
+      alert('LiveKit SDK لم يُحمّل — تأكّد من /vendor أو سيفعّل CDN fallback تلقائيًا. أعد المحاولة بعد ثوانٍ.');
+      setLKStatus('SDK غير جاهز');
+      return;
+    }
+
+    setLKStatus('جلب توكن…');
     const payload = await getToken(roomName, identity);
     if(!payload || !(payload.url && payload.token)){
       publishBtn.disabled = false;
-      alert('فشل جلب التوكن — تحقّق من السيرفر أو فعّل العامل (Worker) البديل.');
+      alert('فشل جلب التوكن — تحقّق من السيرفر/الـWorker. يجب أن يُرجِع { url, token }.');
       setLKStatus('فشل جلب التوكن');
       return;
     }
@@ -340,6 +380,14 @@ publishBtn.addEventListener('click', async () => {
     lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
     await lkRoom.connect(url, token);
 
+    // إن لم تكن أنشأنا LocalTracks عبر SDK (لأننا استخدمنا GUM)، أنشئها الآن من MediaStream
+    if (!localTracks.length && gumStream) {
+      const vTrack = gumStream.getVideoTracks()[0] || null;
+      const aTrack = gumStream.getAudioTracks()[0] || null;
+      if (vTrack) localTracks.push(new LK.LocalVideoTrack(vTrack));
+      if (aTrack) localTracks.push(new LK.LocalAudioTrack(aTrack));
+    }
+
     setLKStatus('نشر المسارات…');
     for (const tr of localTracks){
       await lkRoom.localParticipant.publishTrack(tr);
@@ -347,7 +395,7 @@ publishBtn.addEventListener('click', async () => {
     setLKStatus(`LiveKit: متصل (${roomName})`);
   }catch(err){
     console.error('Publish error:', err);
-    alert('تعذر النشر — تأكد من التوكن وصلاحيات الشبكة.');
+    alert('تعذر النشر — تأكد من التوكن وصلاحيات الشبكة. راجع وحدة التحكم Console للتفاصيل.');
     setLKStatus('فشل النشر');
     publishBtn.disabled = false;
   }
@@ -356,12 +404,15 @@ publishBtn.addEventListener('click', async () => {
 stopBtn.addEventListener('click', () => {
   try{
     if(lkRoom){ lkRoom.disconnect(); lkRoom = null; }
-    localTracks.forEach(t=>{try{t.stop();}catch(_){}}); localTracks=[];
+    try{ localTracks.forEach(t=>t.stop()); }catch(_){}
+    localTracks = [];
+    try{ if (gumStream) { gumStream.getTracks().forEach(t=>t.stop()); gumStream=null; } }catch(_){}
     setLKStatus('LiveKit: غير متصل');
     publishBtn.disabled = true;
     stopBtn.disabled = true;
   }catch(e){}
 });
+/* ===== نهاية بلوك LiveKit ===== */
 
 /* Debug اختياري */
 (function addHlsDebug(){

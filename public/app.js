@@ -301,7 +301,7 @@ publishBtn.addEventListener('click', async () => {
     const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2,8));
 
     setLKStatus('جلب توكن…');
-    const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`);
+    const res = await fetch(`https://steps-livekit-api.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`);
 const { url, token } = await res.json();
 
     if(!res.ok){

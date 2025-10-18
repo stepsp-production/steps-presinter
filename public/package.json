@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",
-  "license": "MIT",
-  "scripts": { "start": "node server.js" },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
   "dependencies": {
     "@livekit/server-sdk": "^2.5.0",
     "cors": "^2.8.5",

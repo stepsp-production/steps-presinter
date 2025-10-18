@@ -1,5 +1,5 @@
 {
-  "name": "steps-livekit-api",
+  "name": "steps-presinter",
   "version": "1.0.0",
   "type": "module",
   "main": "server.js",

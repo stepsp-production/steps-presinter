@@ -230,6 +230,29 @@
 
   <!-- مكتبات vendor محليًا -->
   <script src="/vendor/hls.min.js" defer></script>
+
+  <script>
+  // fallback تلقائي لـ LiveKit UMD إذا تعذّر تحميل الملف المحلي
+  (function () {
+    function hasSDK() {
+      return !!(window.LiveKit || window.Livekit || window.livekit || window.LiveKitClient);
+    }
+    // ننتظر حتى انتهاء تحميل defer scripts الأولى لحظياً
+    window.addEventListener('DOMContentLoaded', function () {
+      setTimeout(function () {
+        if (!hasSDK()) {
+          var s = document.createElement('script');
+          s.src = "https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js";
+          s.defer = true;
+          s.onload = function(){ console.log('[LiveKit] CDN fallback loaded'); };
+          s.onerror = function(){ console.error('[LiveKit] CDN fallback failed to load'); };
+          document.head.appendChild(s);
+        }
+      }, 400); // مهلة قصيرة تسمح للملف المحلي بالتحميل
+    }, { once: true });
+  })();
+</script>
+
   <script src="/vendor/livekit-client.umd.min.js" defer></script>
 
   <!-- التطبيق -->

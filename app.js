@@ -317,7 +317,7 @@ const LK =
 
 function ensureSDK(){
   if (!LK || !LK.Room || !LK.createLocalTracks) {
-    alert('LiveKit SDK غير مُحمَّل — تأكد من وسم الـ CDN في index.html أو وجود /vendor/local.');
+    alert('LiveKit SDK غير مُحمَّل — تأكد من وسم الـ CDN في index.html أو وجود /vendor');
     return false;
   }
   return true;

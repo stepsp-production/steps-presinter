@@ -67,5 +67,5 @@ app.get('/token', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`✅ steps-livekit-api listening on :${PORT}`);
+  console.log(`✅ steps-presinter listening on :${PORT}`);
 });

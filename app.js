@@ -308,20 +308,17 @@ scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(
 document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
 
 /* ===== LiveKit: اقتران/نشر ===== */
-// في app.js (قبل استخدام LiveKit)
 const LK =
-  (window.livekit) ||
-  (window.LiveKit) ||
-  (window.Livekit) ||
-  (window.LiveKitClient);
+  window.livekit || window.LiveKit || window.Livekit || window.LiveKitClient;
 
 function ensureSDK(){
-  if (!LK || !LK.Room || !LK.createLocalTracks) {
-    alert('LiveKit SDK غير مُحمَّل — تأكد من وسم الـ CDN في index.html أو وجود /vendor');
+  if(!LK || !LK.Room || !LK.createLocalTracks){
+    alert('LiveKit SDK غير مُحمَّل — تأكد من /vendor/livekit-client.umd.min.js أو فعّل CDN fallback.');
     return false;
   }
   return true;
 }
+
 const roomSel = document.getElementById('roomSel');
 const displayName = document.getElementById('displayName');
 const pairBtn = document.getElementById('pairBtn');

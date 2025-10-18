@@ -79,11 +79,43 @@ function attachHlsWithAvc(video,url){
     if(s>=0){hls.startLevel=s;hls.currentLevel=s;hls.nextLevel=s;}
     if(mx>=0){hls.autoLevelCapping=mx;}
   }catch(e){}});
-  hls.on(Hls.Events.ERROR,(_,err)=>{
-    if(!err?.fatal) return console.debug('[HLS] non-fatal', err?.details || err);
-    if(err.type==='mediaError'){ try{hls.recoverMediaError();}catch(e){ try{hls.destroy();}catch(_){} try{attachHlsWithAvc(video,url);}catch(__){} } }
-    else { try{hls.destroy();}catch(e){} try{attachHlsWithAvc(video,url);}catch(_){ } }
-  });
+hls.on(Hls.Events.ERROR, (_, err) => {
+  if (!err) return;
+  // سجّل لتتبعّك
+  console.error('[HLS] ERROR', err.type, err.details || err.reason || err);
+
+  // أخطاء الشبكة/المهلة: بدّل المستوى وأعد التحميل برفق
+  if (err.type === 'networkError' || err.details === 'fragLoadTimeOut' || err.details === 'fragLoadError') {
+    try {
+      const levels = hls.levels || [];
+      if (levels.length) {
+        // جرّب مستوى آخر مؤقتًا
+        const next = (hls.currentLevel + 1) % levels.length;
+        hls.nextLevel = next;
+      }
+      hls.stopLoad();
+      setTimeout(() => hls.startLoad(), 800);
+    } catch (_) {}
+    return; // لا تعتبرها قاتلة
+  }
+
+  // أخطاء ميديا: معالجة الاستشفاء
+  if (err.fatal && err.type === 'mediaError') {
+    try { hls.recoverMediaError(); }
+    catch (e) {
+      try { hls.destroy(); } catch (_){}
+      try { attachHlsWithAvc(video, url); } catch (_){}
+    }
+    return;
+  }
+
+  // أخطاء قاتلة أخرى: أعد إنشاء المشغّل
+  if (err.fatal) {
+    try { hls.destroy(); } catch (_){}
+    try { attachHlsWithAvc(video, url); } catch (_){}
+  }
+});
+
   const starve=()=>{try{
     const m=getSeekableRange(video); if(!m) return;
     const near = Math.max(m.start, m.end - SAFETY_EDGE - STARVED_RESEEK);

@@ -14,18 +14,45 @@ function pickBestAvc(levels,capHeight=480){
 }
 function highestAvcIndex(levels){let m=-1;(levels||[]).forEach((l,i)=>{if(isAvc(l))m=i;});return m>=0?m:((levels&&levels.length)?levels.length-1:-1);}
 
-const HLS_CFG={
-  lowLatencyMode:false,
-  liveSyncDurationCount:3, liveMaxLatencyDurationCount:6, maxLiveSyncPlaybackRate:1.0,
-  maxBufferLength:18, backBufferLength:14, maxBufferSize:40*1000*1000,
-  capLevelToPlayerSize:true, enableWorker:true,
-  maxBufferHole:0.15, maxSeekHole:0.25, nudgeOffset:0.12, nudgeMaxRetry:10,
-  abrMaxWithRealBitrate:true,
-  fragLoadingMaxRetry:6, manifestLoadingMaxRetry:6, levelLoadingMaxRetry:5,
-  fragLoadingRetryDelay:350, manifestLoadingRetryDelay:500, levelLoadingRetryDelay:500,
-  fragLoadingTimeOut:10000, manifestLoadingTimeOut:8000, levelLoadingTimeOut:8000,
-  xhrSetup:(xhr)=>{try{xhr.withCredentials=false;}catch(e){}}
+const HLS_CFG = {
+  lowLatencyMode: false,
+  // مزامنة وذاكرة
+  liveSyncDurationCount: 3,
+  liveMaxLatencyDurationCount: 6,
+  maxLiveSyncPlaybackRate: 1.0,
+  maxBufferLength: 18,
+  backBufferLength: 14,
+  maxBufferSize: 40 * 1000 * 1000,
+  capLevelToPlayerSize: true,
+
+  // iOS + CSP: تعطيل العامل لتجنب أي تضارب
+  enableWorker: false,
+
+  // ثقوب وت Nudges
+  maxBufferHole: 0.2,
+  maxSeekHole: 0.3,
+  nudgeOffset: 0.15,
+  nudgeMaxRetry: 12,
+
+  abrMaxWithRealBitrate: true,
+
+  // مهلات ومحاولات أعلى لأن البروكسي بطيء أحيانًا
+  fragLoadingMaxRetry: 8,
+  manifestLoadingMaxRetry: 8,
+  levelLoadingMaxRetry: 6,
+
+  fragLoadingRetryDelay: 500,       // يبدأ بـ 0.5s
+  manifestLoadingRetryDelay: 700,
+  levelLoadingRetryDelay: 700,
+
+  fragLoadingTimeOut: 20000,        // 20s بدل 10s
+  manifestLoadingTimeOut: 12000,
+  levelLoadingTimeOut: 15000,
+
+  // لا ترسل كوكيز
+  xhrSetup: (xhr) => { try { xhr.withCredentials = false; } catch(e){} }
 };
+
 
 function getSeekableRange(v){try{const r=v.seekable;if(!r||!r.length)return null;return{start:r.start(r.length-1),end:r.end(r.length-1)};}catch(e){return null;}}
 function capLiveEdge(v,t){const m=getSeekableRange(v); if(!m) return t; return Math.min(t, m.end - SAFETY_EDGE);}

@@ -13,14 +13,13 @@
   connect-src 'self'
                https://hls-proxy.it-f2c.workers.dev
                https://*.trycloudflare.com
+               https://steps-livekit-api.onrender.com
                https://steps-presinter.onrender.com
                https://cdn.jsdelivr.net
                wss://*.livekit.cloud;
   worker-src  'self' blob:;
   child-src   'self' blob:;
 ">
-
-  
 
   <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
 
@@ -199,10 +198,10 @@
     })();
   </script>
 
- <script src="/vendor/hls.min.js" defer></script>
+<script src="/vendor/hls.min.js" defer></script>
 <script src="/vendor/livekit-client.umd.min.js" defer></script>
 
-<script>
+  <script>
 (function(){
   function hasLK(){
     return (window.livekit && window.livekit.Room) ||
@@ -227,8 +226,7 @@
   }
 })();
 </script>
-  
+
 <script src="/app.js" defer></script>
 
-</body>
 </html>

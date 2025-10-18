@@ -253,18 +253,45 @@ const publishBtn = document.getElementById('publishBtn');
 const stopBtn = document.getElementById('stopBtn');
 const lkStatus = document.getElementById('lkStatus');
 
-let lkRoom=null;
-let localTracks=[];  // [cameraTrack, micTrack]
+let lkRoom = null;
+let localTracks = [];  // [cameraTrack, micTrack]
 
 function setLKStatus(txt){ lkStatus.textContent = txt; }
 function ensureSDK(){
   if(!LK || !LK.Room || !LK.createLocalTracks){
-    alert('LiveKit SDK غير محمّل، تأكد من /vendor/livekit-client.umd.min.js أو CDN.');
+    alert('LiveKit SDK غير محمّل (تحقق من /vendor/livekit-client.umd.min.js أو الـCDN).');
     return false;
   }
   return true;
 }
 
+/* تشخيص استجابة /token — يقبل عدة تسميات شائعة */
+function normalizeTokenPayload(raw){
+  // بعض السيرفرات تُسمّي الحقول: url/token أو wsUrl/accessToken أو livekitUrl/livekitToken
+  const lkUrl   = raw.url || raw.wsUrl || raw.livekitUrl || raw.liveKitUrl || raw.wss || raw.endpoint;
+  const lkToken = raw.token || raw.accessToken || raw.jwt || raw.tk;
+  return { lkUrl, lkToken };
+}
+
+/* فحص سريع للـCORS/JSON */
+async function safeFetchJson(url){
+  const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+  const text = await res.text(); // نقرأ نصًا ثم نحاول JSON لنكشف أخطاء السيرفر/HTML
+  let json = null;
+  try { json = JSON.parse(text); } catch(_) {}
+  return { ok: res.ok, status: res.status, json, text, ct: res.headers.get('content-type') || '' };
+}
+
+/* سجّل أحداث الغرفة لمزيد من الشفافية */
+function wireRoomDebug(room){
+  room
+    .on?.(LK.RoomEvent.ConnectionStateChanged, (s) => console.log('[LK] state =', s))
+    .on?.(LK.RoomEvent.ParticipantConnected,    (p) => console.log('[LK] participant+', p?.identity))
+    .on?.(LK.RoomEvent.ParticipantDisconnected, (p) => console.log('[LK] participant-', p?.identity))
+    .on?.(LK.RoomEvent.Disconnected,                 () => console.log('[LK] disconnected'));
+}
+
+/* اقتران (كما هو) */
 pairBtn.addEventListener('click', async () => {
   try{
     if(!ensureSDK()) return;
@@ -287,6 +314,7 @@ pairBtn.addEventListener('click', async () => {
   }
 });
 
+/* نشر (مُحسّن بالتشخيص) */
 publishBtn.addEventListener('click', async () => {
   if(!ensureSDK()) return;
   try{
@@ -295,29 +323,43 @@ publishBtn.addEventListener('click', async () => {
     const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2,8));
 
     setLKStatus('جلب توكن…');
-    const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`);
-    if(!res.ok){
-      publishBtn.disabled = false;
-      alert('فشل طلب التوكن (تحقق من السيرفر/الراوت).');
+
+    // 1) جلب استجابة السيرفر مع تشخيص مفصّل
+    const qs = `room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`;
+    const tokenUrl = `https://steps-livekit-api.onrender.com/token?${qs}`;
+    const resp = await safeFetchJson(tokenUrl);
+
+    if(!resp.ok || !resp.json){
+      console.error('[LK] token fetch failed:', { status: resp.status, ct: resp.ct, body: resp.text?.slice(0,400) });
+      alert('فشل طلب التوكن (تحقق من السيرفر/الراوت/CORS). التفاصيل في Console.');
       setLKStatus('فشل جلب التوكن');
-      return;
-    }
-
-    // *** تجنب إعادة تعريف "url" — استخدم أسماء مختلفة ***
-    const data = await res.json();
-    const lkUrl   = data.url;
-    const lkToken = data.token;
-
-    if(!lkUrl || !lkToken){
       publishBtn.disabled = false;
-      alert('استجابة توكن غير صحيحة. يجب أن تكون: { url, token }');
-      setLKStatus('توكن غير صالح');
       return;
     }
 
+    // 2) التطبيع ودعم تسميات متعددة
+    const { lkUrl, lkToken } = normalizeTokenPayload(resp.json);
+    if(!lkUrl || !lkToken){
+      console.error('[LK] bad token JSON. Received:', resp.json);
+      alert('استجابة توكن غير صحيحة. يجب أن تحتوي على { url, token } أو حقول مكافئة.');
+      setLKStatus('توكن غير صالح');
+      publishBtn.disabled = false;
+      return;
+    }
+
+    // 3) تحقق من أن العنوان يبدأ بـ wss://
+    if(!/^wss:\/\//i.test(lkUrl)){
+      console.warn('[LK] token url does not start with wss:// ->', lkUrl);
+      alert('قيمة url في استجابة التوكن يجب أن تكون wss://<livekit-host> وليس https://');
+      setLKStatus('عنوان LiveKit غير صالح');
+      publishBtn.disabled = false;
+      return;
+    }
+
+    // 4) الاتصال ونشر المسارات
     setLKStatus('الاتصال بالغرفة…');
     lkRoom = new LK.Room({ adaptiveStream: true, dynacast: true });
-    lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
+    wireRoomDebug(lkRoom);
     await lkRoom.connect(lkUrl, lkToken);
 
     setLKStatus('نشر المسارات…');
@@ -327,7 +369,7 @@ publishBtn.addEventListener('click', async () => {
     setLKStatus(`LiveKit: متصل (${roomName})`);
   }catch(err){
     console.error('Publish error:', err);
-    alert('تعذر نشر الصوت/الفيديو — تأكد من الاتصال بالشبكة والتوكن.');
+    alert('تعذر نشر الصوت/الفيديو — راجع Console لمعرفة السبب (ربط، توكن، أو CORS).');
     setLKStatus('فشل النشر');
     publishBtn.disabled = false;
   }

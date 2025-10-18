@@ -79,7 +79,7 @@ function attachHlsWithAvc(video,url){
     if(s>=0){hls.startLevel=s;hls.currentLevel=s;hls.nextLevel=s;}
     if(mx>=0){hls.autoLevelCapping=mx;}
   }catch(e){}});
-  hls.on(Hls.Events.ERROR, (_, err) => {
+hls.on(Hls.Events.ERROR, (_, err) => {
   if (!err) return;
   // سجّل لتتبعّك
   console.error('[HLS] ERROR', err.type, err.details || err.reason || err);
@@ -308,7 +308,20 @@ scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(
 document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
 
 /* ===== LiveKit: اقتران/نشر ===== */
-const LK = (window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient);
+// في app.js (قبل استخدام LiveKit)
+const LK =
+  (window.livekit) ||
+  (window.LiveKit) ||
+  (window.Livekit) ||
+  (window.LiveKitClient);
+
+function ensureSDK(){
+  if (!LK || !LK.Room || !LK.createLocalTracks) {
+    alert('LiveKit SDK غير مُحمَّل — تأكد من وسم الـ CDN في index.html أو وجود /vendor/local.');
+    return false;
+  }
+  return true;
+}
 const roomSel = document.getElementById('roomSel');
 const displayName = document.getElementById('displayName');
 const pairBtn = document.getElementById('pairBtn');
@@ -320,14 +333,6 @@ let lkRoom=null;
 let localTracks=[];
 
 function setLKStatus(txt){ lkStatus.textContent = txt; }
-function ensureSDK() {
-  if (!LK || !LK.Room || !LK.createLocalTracks) {
-    alert('LiveKit SDK غير مُحمّل — تأكد من وسم الـCDN في index.html.');
-    return false;
-  }
-  return true;
-}
-
 pairBtn.addEventListener('click', async () => {
   try{
     if(!ensureSDK()) return;

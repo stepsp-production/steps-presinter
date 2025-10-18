@@ -41,7 +41,7 @@ app.get('/token', async (req, res) => {
   }
 });
 
-app.get('/', (_, res) => res.send('steps-livekit-api OK'));
+app.get('/', (_, res) => res.send('steps-presinter OK'));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {

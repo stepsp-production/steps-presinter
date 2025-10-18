@@ -371,9 +371,16 @@ function getLK(){
 }
 
 let _lkLoading = null;
-async function ensureSDK(){
-  if(getLK()) return getLK();
-  if(_lkLoading){ await _lkLoading; return getLK(); }
+// ===== LiveKit: اقتران/نشر =====
+const LK = window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient;
+function ensureSDK() {
+  if (!LK || !LK.Room || !LK.createLocalTracks) {
+    alert('LiveKit SDK غير محمّل — تأكد أن السطر <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"> موجود في index.html.');
+    return false;
+  }
+  return LK;
+}
+
 
   _lkLoading = new Promise((resolve, reject)=>{
     const s=document.createElement('script');

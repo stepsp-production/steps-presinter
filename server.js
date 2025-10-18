@@ -5,31 +5,16 @@ import { AccessToken } from '@livekit/server-sdk';
 const app = express();
 app.use(cors());
 
-const {
-  LIVEKIT_URL,
-  LIVEKIT_API_KEY,
-  LIVEKIT_API_SECRET,
-} = process.env;
+const { LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET } = process.env;
 
-if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
-  console.warn('[WARN] LIVEKIT_* env vars are missing. Set them in Render -> Environment.');
-}
-
-app.get('/', (_req, res) => {
-  res.type('text/plain').send('steps-livekit-api OK');
-});
+app.get('/', (_req, res) => res.type('text/plain').send('steps-livekit-api OK'));
 
 app.get('/token', async (req, res) => {
   try {
     const { room, identity } = req.query;
-    if (!room || !identity) {
-      return res.status(400).json({ error: 'missing room or identity' });
-    }
+    if (!room || !identity) return res.status(400).json({ error: 'missing room or identity' });
 
-    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-      identity: String(identity),
-    });
-
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, { identity: String(identity) });
     at.addGrant({
       room: String(room),
       roomJoin: true,
@@ -47,6 +32,4 @@ app.get('/token', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`steps-livekit-api listening on :${PORT}`);
-});
+app.listen(PORT, () => console.log(`steps-livekit-api listening on :${PORT}`));

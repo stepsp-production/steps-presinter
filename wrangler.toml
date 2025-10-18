@@ -1,8 +1,8 @@
-name = "hls-proxy"
+name = "lk-token"
 main = "worker.js"
-compatibility_date = "2025-10-15"
-
+compatibility_date = "2024-01-01"
 
 [vars]
-ORIGIN_BASE = "https://dpi-magic-professionals-findings.trycloudflare.com"
-UPSTREAM_PREFIX = "/hls"
+LIVEKIT_API_KEY = "lk_api_key"
+LIVEKIT_API_SECRET = "lk_api_secret"
+LIVEKIT_URL = "wss://your-instance.livekit.cloud"

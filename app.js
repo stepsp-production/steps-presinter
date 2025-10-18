@@ -34,6 +34,16 @@ function containsTime(v,t){try{const b=v.buffered;for(let i=0;i<b.length;i++){if
 function nearestBufferedTime(v,t){try{const b=v.buffered;let best=null,dm=1e9;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);const cand=(t<s)?s:(t>e?e:t);const d=Math.abs(cand-t);if(d<dm){dm=d;best=cand;}} return best;}catch(e){return null;}}
 function snapIntoBuffer(v,t){t=capLiveEdge(v,t); const r=containsTime(v,t); if(r) return t; const near=nearestBufferedTime(v,t); return typeof near==='number'?near:t;}
 
+/* ★★★ كانت مفقودة — تُسبب ReferenceError وتوقف السكربت ★★★ */
+async function waitBufferedAt(v,t,minAhead=SHOW_MIN_BUF,timeout=6000){
+  t=capLiveEdge(v,t); const t0=performance.now();
+  return new Promise(res=>{(function loop(){
+    const r=containsTime(v,t); if(r && r.end - t >= minAhead) return res(true);
+    if(performance.now()-t0>timeout) return res(false);
+    setTimeout(loop,90);
+  })();});
+}
+
 function attachHlsWithAvc(video,url){
   const hls=new Hls({...HLS_CFG}); video.__hls=hls; hls.attachMedia(video);
   hls.on(Hls.Events.MEDIA_ATTACHED,()=>{hls.loadSource(url);});
@@ -119,7 +129,7 @@ function buildStreamList(){
     const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam=ch.id;
     const name=document.createElement('div'); name.className='stream-name'; name.textContent=ch.label;
     li.appendChild(name);
-    li.addEventListener('click',()=>setActiveCamSmooth(ch.id));
+    li.addEventListener('click',()=>{ setActiveCamSmooth(ch.id).catch(console.error); });
     streamList.appendChild(li);
   });
   document.addEventListener('keydown',(e)=>{
@@ -131,29 +141,45 @@ function buildStreamList(){
 function markActiveList(){document.querySelectorAll('.stream-item').forEach(el=>{el.classList.toggle('active',el.dataset.cam===currentCam);});}
 
 function initOnce(){
-  initMain();
-  const first=getOrCreateCam(currentCam);
-  first.wrap.style.opacity='1';
-  activePlayer=first.video;
-  buildStreamList();
-  markActiveList();
+  try{
+    initMain();
+    const first=getOrCreateCam(currentCam);
+    first.wrap.style.opacity='1';
+    activePlayer=first.video;
+    buildStreamList();
+    markActiveList();
+  }catch(err){
+    console.error('initOnce error:', err);
+  }
 }
-document.addEventListener('DOMContentLoaded', initOnce);
+/* تأكد من الاستدعاء دائمًا حتى لو كان DOM محمّلاً مسبقًا */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initOnce);
+} else {
+  initOnce();
+}
 
 /* ===== تبديل الكاميرا بسلاسة ===== */
 async function setActiveCamSmooth(id){
-  if(!window.sources[id] || id===currentCam) return;
-  currentCam=id; markActiveList();
-  const target=getOrCreateCam(id);
-  const v=target.video, w=target.wrap;
-  if(!target.ready) await new Promise(r => v.addEventListener('canplay', r, {once:true}));
-  let T = capLiveEdge(v, (mainPlayer.currentTime||0));
-  const ok = await waitBufferedAt(v, T, SHOW_MIN_BUF, 6000);
-  v.currentTime = snapIntoBuffer(v, ok?T:(v.currentTime||0));
-  try{ await v.play(); }catch(_){}
-  w.className='layer fade-in'; w.style.opacity='1';
-  const old = activePlayer, oldWrap = old ? old.parentElement : null;
-  setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
+  try{
+    if(!window.sources[id] || id===currentCam) return;
+    currentCam=id; markActiveList();
+    const target=getOrCreateCam(id);
+    const v=target.video, w=target.wrap;
+
+    if(!target.ready) await new Promise(r => v.addEventListener('canplay', r, {once:true}));
+
+    let T = capLiveEdge(v, (mainPlayer.currentTime||0));
+    const ok = await waitBufferedAt(v, T, SHOW_MIN_BUF, 6000);
+    v.currentTime = snapIntoBuffer(v, ok?T:(v.currentTime||0));
+    try{ await v.play(); }catch(_){}
+
+    w.className='layer fade-in'; w.style.opacity='1';
+    const old = activePlayer, oldWrap = old ? old.parentElement : null;
+    setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
+  }catch(err){
+    console.error('switch error:', err);
+  }
 }
 
 /* ===== UI hide/show ===== */

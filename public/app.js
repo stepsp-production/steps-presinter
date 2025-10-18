@@ -302,6 +302,8 @@ publishBtn.addEventListener('click', async () => {
 
     setLKStatus('جلب توكن…');
     const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`);
+const { url, token } = await res.json();
+
     if(!res.ok){
       publishBtn.disabled = false;
       alert('فشل طلب التوكن (تحقق من السيرفر/الراوت على Render).');

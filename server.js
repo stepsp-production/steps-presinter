@@ -1,49 +1,52 @@
-// server.js
 import express from 'express';
 import cors from 'cors';
 import { AccessToken } from '@livekit/server-sdk';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
 
-const LIVEKIT_URL    = process.env.LIVEKIT_URL;    // wss://xxx.livekit.cloud
-const LIVEKIT_APIKEY = process.env.LIVEKIT_API_KEY;
-const LIVEKIT_SECRET = process.env.LIVEKIT_API_SECRET;
+const {
+  LIVEKIT_URL,
+  LIVEKIT_API_KEY,
+  LIVEKIT_API_SECRET,
+} = process.env;
 
-if (!LIVEKIT_URL || !LIVEKIT_APIKEY || !LIVEKIT_SECRET) {
-  console.warn('⚠️  LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET غير مهيأة');
+if (!LIVEKIT_URL || !LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
+  console.warn('[WARN] LIVEKIT_* env vars are missing. Set them in Render -> Environment.');
 }
 
-// /token?room=room-1&identity=test123
+app.get('/', (_req, res) => {
+  res.type('text/plain').send('steps-livekit-api OK');
+});
+
 app.get('/token', async (req, res) => {
   try {
-    const roomName = (req.query.room || 'room-1').toString();
-    const identity = (req.query.identity || 'guest-' + Math.random().toString(36).slice(2,8)).toString();
+    const { room, identity } = req.query;
+    if (!room || !identity) {
+      return res.status(400).json({ error: 'missing room or identity' });
+    }
 
-    // منح صلاحيات النشر والاشتراك
-    const at = new AccessToken(LIVEKIT_APIKEY, LIVEKIT_SECRET, {
-      identity,
-      ttl: '1h',
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity: String(identity),
     });
+
     at.addGrant({
+      room: String(room),
       roomJoin: true,
-      room: roomName,
       canPublish: true,
       canSubscribe: true,
+      canPublishData: true,
     });
 
     const token = await at.toJwt();
-    res.json({ url: LIVEKIT_URL, token });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'failed_to_issue_token' });
+    return res.json({ url: LIVEKIT_URL, token });
+  } catch (err) {
+    console.error('[token] error:', err);
+    return res.status(500).json({ error: 'token-error' });
   }
 });
 
-app.get('/', (_, res) => res.send('steps-presinter OK'));
-
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log('server listening on :' + port);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`steps-livekit-api listening on :${PORT}`);
 });

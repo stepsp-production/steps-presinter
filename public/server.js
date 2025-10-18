@@ -7,7 +7,7 @@ app.use(cors());
 
 const { LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET } = process.env;
 
-app.get('/', (_req, res) => res.type('text/plain').send('steps-livekit-api OK'));
+app.get('/', (_req, res) => res.type('text/plain').send('steps-presinter OK'));
 
 app.get('/token', async (req, res) => {
   try {

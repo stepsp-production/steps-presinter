@@ -484,7 +484,7 @@ async function loadLiveKit() {
   try {
     await new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = '/vendor/livekit-client.umd.min.js?v=' + Date.now().toString(36);
+      s.src = '/vendor/livekit-client.umd.js?v=' + Date.now().toString(36);
       s.defer = true;
       s.onload = resolve;
       s.onerror = reject;
@@ -508,7 +508,7 @@ async function loadLiveKit() {
 function ensureSDK() {
   LK = getLKGlobal();
   if (!LK || !LK.Room || !LK.createLocalTracks) {
-    alert('LiveKit SDK غير مُحمَّل — تأكد من توفر /vendor/livekit-client.umd.min.js أو CDN fallback.');
+    alert('LiveKit SDK غير مُحمَّل — تأكد من توفر /vendor/livekit-client.umd.js أو CDN fallback.');
     return false;
   }
   return true;

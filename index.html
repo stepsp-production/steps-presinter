@@ -199,7 +199,7 @@
   </script>
 
 <script src="/vendor/hls.min.js" defer></script>
-<script src="/vendor/livekit-client.umd.min.js" defer></script>
+<script src="/vendor/livekit-client.umd.js" defer crossorigin="anonymous"></script>
 
   <script>
 (function(){
@@ -214,11 +214,11 @@
     document.head.appendChild(s);
   }
   if(!hasLK()){
-    load('/vendor/livekit-client.umd.min.js', function(){
+    load('/vendor/livekit-client.umd.js', function(){
       console.log('LiveKit local loaded');
     }, function(){
       // fallback إلى CDN (أضف https://cdn.jsdelivr.net في connect-src لو تريد sourcemap)
-      load('https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js',
+      load('https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.js',
         function(){ console.log('LiveKit CDN loaded'); },
         function(){ alert('تعذّر تحميل LiveKit SDK محليًا وCDN'); }
       );
@@ -235,7 +235,8 @@
 
 <!-- لا تضع livekit هنا (لا نستخدم onerror inline). سيُحمَّل تلقائيًا من داخل app.js: CDN -> /vendor -->
 
- <script src="/vendor/livekit-client.umd.min.js" defer></script> 
+<script src="/vendor/livekit-client.umd.js" defer crossorigin="anonymous"></script>
+ 
   
 <!-- تطبيقك -->
 <script src="/app.js" defer></script>

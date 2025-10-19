@@ -211,6 +211,66 @@ function createVideoElement(url) {
   return { wrap, video: v };
 }
 
+// ===== LiveKit SDK robust loader (لا يغيّر ميزاتك) =====
+(function setupLiveKitLoader(){
+  const LK_GLOBALS = ['livekit','LiveKit','Livekit','LiveKitClient'];
+
+  function pickLK(){
+    for (const k of LK_GLOBALS) {
+      if (window[k]) return window[k];
+    }
+    return null;
+  }
+
+  // تحقّق سريع
+  if (pickLK()) { window.__LK_READY__ = true; return; }
+
+  // مصادر احتياطية (تفعّل فقط إذا لم يوجد الملف المحلي)
+  const FALLBACKS = [
+    'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.js',
+    'https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.js'
+  ];
+
+  function injectOnce(src, timeoutMs=9000){
+    return new Promise((resolve, reject)=>{
+      const s = document.createElement('script');
+      s.src = src; s.defer = true; s.crossOrigin = 'anonymous';
+      s.onload = ()=> resolve(true);
+      s.onerror = ()=> reject(new Error('load-failed:'+src));
+      document.head.appendChild(s);
+      // مهلة أمان
+      setTimeout(()=> reject(new Error('timeout:'+src)), timeoutMs);
+    });
+  }
+
+  async function ensureLK(){
+    // لو الملف المحلي موجود كوسم سكربت عادي سيلتقطه defer تلقائيًا؛ ننتظر DOM ready
+    if (document.readyState === 'loading') {
+      await new Promise(r=>document.addEventListener('DOMContentLoaded', r, {once:true}));
+    }
+
+    // بعد DOM: جرّب الالتقاط مرة أخرى
+    if (pickLK()) { window.__LK_READY__ = true; return true; }
+
+    // fallback: جرب CDN بالتسلسل
+    for (const url of FALLBACKS){
+      try { 
+        await injectOnce(url);
+        if (pickLK()) { window.__LK_READY__ = true; return true; }
+      } catch (e) { /* جرّب التالي */ }
+    }
+
+    // فشل نهائي
+    window.__LK_READY__ = false;
+    return false;
+  }
+
+  // واجهة عامة لملفاتك الأخرى
+  window.__ensureLiveKit = ensureLK;
+  window.__getLiveKit    = () => pickLK();
+})();
+
+
 /* ===================== DOM & حالة ===================== */
 const root            = document.getElementById('playerContainer');
 const mainContainer   = document.getElementById('mainPreview');
@@ -433,6 +493,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 /* ===================== LiveKit: تحميل UMD + اقتران/نشر ===================== */
+// داخل app.js لديك:
 const roomSel     = document.getElementById('roomSel');
 const displayName = document.getElementById('displayName');
 const pairBtn     = document.getElementById('pairBtn');
@@ -440,178 +501,83 @@ const publishBtn  = document.getElementById('publishBtn');
 const stopBtn     = document.getElementById('stopBtn');
 const lkStatus    = document.getElementById('lkStatus');
 
-let LK = null;          // مرجع الـSDK بعد التحميل
-let lkRoom = null;      // Room instance
-let localTracks = [];   // [videoTrack, audioTrack]
+function setLKStatus(t){ lkStatus.textContent = t; }
 
-function setLKStatus(txt) { lkStatus.textContent = txt; }
-
-function getLKGlobal() {
-  return (
-    window.livekitClient ||
-    window.LiveKitClient ||
-    window.LiveKit ||
-    window.livekit ||
-    window.Livekit || null
-  );
-}
-function waitForLK(timeoutMs = 2000) {
-  return new Promise((resolve) => {
-    const t0 = performance.now();
-    (function loop() {
-      const g = getLKGlobal();
-      if (g) return resolve(g);
-      if (performance.now() - t0 > timeoutMs) return resolve(null);
-      setTimeout(loop, 40);
-    })();
-  });
-}
-async function loadScriptOnce(src) {
-  if ([...document.scripts].some(s => (s.src || '').endsWith(src))) return;
-  await new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.defer = true;
-    s.crossOrigin = 'anonymous';
-    s.onload = resolve;
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
-}
-async function loadLiveKit() {
-  if (window.livekitClient || window.LiveKitClient || window.LiveKit) return true;
-
-  try {
-    await new Promise((resolve, reject) => {
-      const s = document.createElement('script');
-      s.src = '/vendor/livekit-client.umd.js?v=' + Date.now().toString(36);
-      s.defer = true;
-      s.onload = resolve;
-      s.onerror = reject;
-      document.head.appendChild(s);
-    });
-  } catch (e) {
-    console.error('فشل تحميل LiveKit المحلي:', e);
-    alert('تعذر تحميل مكتبة LiveKit من المسار المحلي. تحقق من وجود الملف داخل /vendor/');
-    return false;
-  }
-
-  // تأكيد أن الكائن أصبح متاحًا
-  const LK = window.livekitClient || window.LiveKitClient || window.LiveKit;
-  if (!LK) {
-    alert('LiveKit SDK غير محمّل — الملف المحلي لم يُحمّل بنجاح.');
-    return false;
-  }
-  return true;
-}
-
-function ensureSDK() {
-  LK = getLKGlobal();
-  if (!LK || !LK.Room || !LK.createLocalTracks) {
-    alert('LiveKit SDK غير مُحمَّل — تأكد من توفر /vendor/livekit-client.umd.js أو CDN fallback.');
-    return false;
-  }
-  return true;
-}
-
-/* ===== تهيئة الأجهزة و Tracks معFallback ===== */
-async function createTracksWithFallback() {
-  // محاولة قياسية عبر SDK
-  try {
-    return await LK.createLocalTracks({
-      audio: true,
-      video: { facingMode: 'user', resolution: LK.VideoPresets?.h720 || undefined },
-    });
-  } catch (e) {
-    // NotFound/NotReadable → جرّب بدون facingMode
-    if (e?.name === 'NotFoundError' || e?.name === 'NotReadableError') {
-      try { return await LK.createLocalTracks({ audio: true, video: true }); }
-      catch (e2) { throw e2; }
-    }
-    throw e;
-  }
-}
-
-/* ===== أحداث الأزرار ===== */
 pairBtn.addEventListener('click', async () => {
+  // تأكيد تحميل SDK قبل أي استدعاء
+  const ok = await window.__ensureLiveKit();
+  const LK  = window.__getLiveKit();
+  if (!ok || !LK || !LK.createLocalTracks) {
+    alert('LiveKit SDK غير مُحمّل — تأكد من الوسم أو ال-CDN/الـCSP.');
+    setLKStatus('فشل تحميل SDK');
+    return;
+  }
+
   try {
-    // تأكد من تحميل SDK (محلي ثم CDN)
-    const ok = await loadLiveKit();
-    if (!ok) return;
-    if (!ensureSDK()) return;
-
     setLKStatus('طلب أذونات…');
+    // تلميحات iOS/Safari: إن لم توجد أجهزة سيُرمى NotFoundError
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const hasCam  = devices.some(d=>d.kind==='videoinput');
+    const hasMic  = devices.some(d=>d.kind==='audioinput');
 
-    // تنظيف قديم
-    localTracks.forEach(t => { try { t.stop(); } catch (_) {} });
-    localTracks = [];
+    const tracks = await LK.createLocalTracks({
+      audio: hasMic  ? true : false,
+      video: hasCam  ? { facingMode: 'user', resolution: LK.VideoPresets.h720 } : false
+    });
 
-    // إنشاء Tracks
-    const tracks = await createTracksWithFallback();
-
-    localTracks = tracks;
-    setLKStatus('جاهز للنشر');
+    window.__localTracks = tracks;
     publishBtn.disabled = false;
     stopBtn.disabled    = false;
+    setLKStatus('جاهز للنشر');
   } catch (err) {
     console.error('Pair error:', err);
-    if (err?.name === 'NotFoundError') {
-      alert('تعذر العثور على كاميرا/مايك. تأكد من توصيل الأجهزة ومنح الإذن للمتصفح.');
-    } else if (err?.name === 'NotAllowedError') {
-      alert('تم رفض الإذن. من فضلك امنح إذن الكاميرا/المايك وأعد المحاولة.');
+    if (err && err.name === 'NotFoundError') {
+      alert('لم يتم العثور على كاميرا/مايك. تأكد من وجود أجهزة، أو من تفعيل الأذونات في إعدادات المتصفح/النظام.');
+    } else if (err && err.name === 'NotAllowedError') {
+      alert('تم رفض الإذن. افتح إعدادات الموقع ومنح إذن الكاميرا والميكروفون.');
     } else {
-      alert('تعذر الوصول للكاميرا/المايك — امنح الإذن ثم أعد المحاولة.');
+      alert('تعذر الوصول للكاميرا/المايك — تحقق من الأذونات ثم أعد المحاولة.');
     }
     setLKStatus('فشل الاقتران');
   }
 });
 
 publishBtn.addEventListener('click', async () => {
-  if (!ensureSDK()) return;
+  const ok = await window.__ensureLiveKit();
+  const LK  = window.__getLiveKit();
+  if (!ok || !LK || !LK.Room) {
+    alert('LiveKit SDK غير مُحمّل — تأكد من الوسم أو ال-CDN/الـCSP.');
+    setLKStatus('فشل تحميل SDK');
+    return;
+  }
 
   try {
     publishBtn.disabled = true;
 
     const roomName = roomSel.value || 'room-1';
-    const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2, 8));
+    const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2,8));
 
     setLKStatus('جلب توكن…');
-    const tokenRes = await fetch(
-      `https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`,
-      { credentials: 'omit' }
-    );
-    if (!tokenRes.ok) {
-      publishBtn.disabled = false;
-      alert('فشل طلب التوكن (تحقق من السيرفر/الراوت).');
-      setLKStatus('فشل جلب التوكن');
-      return;
-    }
-    const data = await tokenRes.json();
-    const lkUrl  = data?.url;
-    const lkTok  = data?.token;
-
-    if (!lkUrl || !lkTok) {
-      publishBtn.disabled = false;
-      alert('استجابة التوكن غير صحيحة. يجب أن تكون: { url, token }');
-      setLKStatus('توكن غير صالح');
-      return;
-    }
+    const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`, { mode:'cors' });
+    if (!res.ok) throw new Error('token-http-'+res.status);
+    const data = await res.json();
+    const url   = data.url;
+    const token = data.token;
+    if (!url || !token) throw new Error('token-shape');
 
     setLKStatus('الاتصال بالغرفة…');
-    lkRoom = new LK.Room({ adaptiveStream: true, dynacast: true });
+    window.__lkRoom = new LK.Room({ adaptiveStream:true, dynacast:true });
+    window.__lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
+    await window.__lkRoom.connect(url, token);
 
-    lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
-    await lkRoom.connect(lkUrl, lkTok);
-
-    // نشر المسارات
     setLKStatus('نشر المسارات…');
-    for (const tr of localTracks) {
-      await lkRoom.localParticipant.publishTrack(tr);
+    for (const tr of (window.__localTracks || [])) {
+      await window.__lkRoom.localParticipant.publishTrack(tr);
     }
     setLKStatus(`LiveKit: متصل (${roomName})`);
   } catch (err) {
     console.error('Publish error:', err);
-    alert('تعذر نشر الصوت/الفيديو — تأكد من التوكن والاتصال بالشبكة.');
+    alert('تعذر نشر الصوت/الفيديو — تحقق من التوكن والاتصال.');
     setLKStatus('فشل النشر');
     publishBtn.disabled = false;
   }
@@ -619,13 +585,12 @@ publishBtn.addEventListener('click', async () => {
 
 stopBtn.addEventListener('click', () => {
   try {
-    if (lkRoom) { lkRoom.disconnect(); lkRoom = null; }
-    localTracks.forEach((t) => { try { t.stop(); } catch (_) {} });
-    localTracks = [];
+    if (window.__lkRoom) { window.__lkRoom.disconnect(); window.__lkRoom = null; }
+    (window.__localTracks || []).forEach(t=>{try{t.stop();}catch(_){}}); window.__localTracks = [];
     setLKStatus('LiveKit: غير متصل');
     publishBtn.disabled = true;
     stopBtn.disabled    = true;
-  } catch (e) {}
+  } catch(_){}
 });
 
 /* ===================== Debug اختياري لـ HLS ===================== */

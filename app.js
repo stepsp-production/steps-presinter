@@ -506,13 +506,22 @@ function setLKStatus(t){ lkStatus.textContent = t; }
 pairBtn.addEventListener('click', async () => {
   // تأكيد تحميل SDK قبل أي استدعاء
   const ok = await window.__ensureLiveKit();
-  const LK  = window.__getLiveKit();
-  if (!ok || !LK || !LK.createLocalTracks) {
-    alert('LiveKit SDK غير مُحمّل — تأكد من الوسم أو ال-CDN/الـCSP.');
-    setLKStatus('فشل تحميل SDK');
-    return;
-  }
+  // التقط LiveKit بعد التحميل
+const LK =
+  window.livekit ||
+  window.Livekit ||
+  window.LiveKit ||
+  window.LiveKitClient;
 
+function ensureSDK() {
+  if (!LK || !LK.Room || !LK.createLocalTracks) {
+    console.error('LiveKit UMD not found on window.*', { keys: Object.keys(window) });
+    alert('LiveKit SDK غير محمّل. تحقق من /vendor/livekit-client.umd.js');
+    return false;
+  }
+  return true;
+}
+   
   try {
     setLKStatus('طلب أذونات…');
     // تلميحات iOS/Safari: إن لم توجد أجهزة سيُرمى NotFoundError

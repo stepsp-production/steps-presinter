@@ -1,44 +1,37 @@
-// Cloudflare Worker: يولّد JWT LiveKit بدون @livekit/server-sdk
-// أضف الأسرار في wrangler.toml أو Dashboard: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_URL
-import { SignJWT } from 'jose';
-
+// worker.js
 export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    if (url.pathname === '/token') {
-      const room = url.searchParams.get('room') || (await request.json().catch(()=>({})) ).room;
-      const identity = url.searchParams.get('identity') || (await request.json().catch(()=>({})) ).identity;
-      if (!room || !identity) return new Response(JSON.stringify({error:'missing room/identity'}), {status:400});
+  async fetch(req) {
+    const url = new URL(req.url);
 
-      const apiKey = env.LIVEKIT_API_KEY;
-      const apiSecret = env.LIVEKIT_API_SECRET;
-      const lkUrl = env.LIVEKIT_URL; // مثل: wss://your-instance.livekit.cloud
-      if(!apiKey || !apiSecret || !lkUrl) return new Response(JSON.stringify({error:'missing env'}), {status:500});
+    if (url.pathname === '/vendor/livekit-client.umd.js') {
+      const upstreams = [
+        'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.js',
+        'https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.js',
+      ];
 
-      // Video grant لــ LiveKit
-      const videoGrant = {
-        room,
-        roomJoin: true,
-        canPublish: true,
-        canSubscribe: true
-      };
+      for (const u of upstreams) {
+        try {
+          const r = await fetch(u, { cf: { cacheTtl: 86400, cacheEverything: true } });
+          if (r.ok) {
+            let body = await r.text();
+            body = body.replace(/\/\/# sourceMappingURL=.*$/m, '');
+            return new Response(body, {
+              headers: {
+                'content-type': 'application/javascript; charset=utf-8',
+                'cache-control': 'public, max-age=86400',
+              },
+            });
+          }
+        } catch (_) {}
+      }
 
-      const now = Math.floor(Date.now()/1000);
-      const payload = {
-        vid: videoGrant, // claim خاص LiveKit
-        sub: identity,
-        name: identity,
-        iat: now,
-        exp: now + 60 * 60, // صالح ساعة
-        iss: apiKey
-      };
-
-      const token = await new SignJWT(payload)
-        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-        .sign(new TextEncoder().encode(apiSecret));
-
-      return new Response(JSON.stringify({ url: lkUrl, token }), {headers:{'content-type':'application/json'}});
+      return new Response(
+        '/* Failed to fetch livekit-client.umd.js from upstreams */',
+        { status: 502, headers: { 'content-type': 'application/javascript' } }
+      );
     }
-    return new Response(JSON.stringify({ok:true}), {headers:{'content-type':'application/json'}});
-  }
-}
+
+    // باقي الطلبات تذهب كما هي
+    return fetch(req);
+  },
+};

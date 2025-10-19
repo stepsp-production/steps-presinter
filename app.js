@@ -479,26 +479,32 @@ async function loadScriptOnce(src) {
   });
 }
 async function loadLiveKit() {
-  // إن كان محملاً مسبقاً
-  LK = getLKGlobal();
-  if (LK) return true;
+  if (window.livekitClient || window.LiveKitClient || window.LiveKit) return true;
 
-  // 1) الملف المحلي
-  try { await loadScriptOnce('/vendor/livekit-client.umd.min.js?v=' + Date.now().toString(36)); }
-  catch (e) { console.warn('فشل تحميل local UMD', e); }
-  LK = await waitForLK(1500);
-  if (LK) return true;
+  try {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = '/vendor/livekit-client.umd.min.js?v=' + Date.now().toString(36);
+      s.defer = true;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  } catch (e) {
+    console.error('فشل تحميل LiveKit المحلي:', e);
+    alert('تعذر تحميل مكتبة LiveKit من المسار المحلي. تحقق من وجود الملف داخل /vendor/');
+    return false;
+  }
 
-  // 2) الخطة البديلة CDN
-  try { await loadScriptOnce('https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js'); }
-  catch (e) { console.warn('فشل تحميل CDN', e); }
-  LK = await waitForLK(2000);
-  if (LK) return true;
-
-  alert('LiveKit SDK غير مُحمَّل — تأكد من /vendor/livekit-client.umd.min.js أو السماح بالـCDN.');
-  console.error('LiveKit object not found after local/CDN load');
-  return false;
+  // تأكيد أن الكائن أصبح متاحًا
+  const LK = window.livekitClient || window.LiveKitClient || window.LiveKit;
+  if (!LK) {
+    alert('LiveKit SDK غير محمّل — الملف المحلي لم يُحمّل بنجاح.');
+    return false;
+  }
+  return true;
 }
+
 function ensureSDK() {
   LK = getLKGlobal();
   if (!LK || !LK.Room || !LK.createLocalTracks) {

@@ -114,16 +114,32 @@ function attachHlsWithAvc(video,srcUrl){
       if(mx>=0){ hls.autoLevelCapping=mx; }
     }catch(_){}
   });
-  hls.on(Hls.Events.ERROR,(_,err)=>{
-    if(!err?.fatal){ console.debug('[HLS] non-fatal', err?.details||err); return; }
-    if(err.type==='mediaError'){
-      try{ hls.recoverMediaError(); }
-      catch(_){ try{ hls.destroy(); }catch(__){} try{ attachHlsWithAvc(video,srcUrl); }catch(__){} }
-    }else{
-      try{ hls.destroy(); }catch(_){}
-      try{ attachHlsWithAvc(video,srcUrl); }catch(__){}
+    hls.on(Hls.Events.ERROR, (_, err) => {
+    // تجاوز أخطاء parsing غير القاتلة بتبديل المستوى أو إعادة المحاولة
+    if (err?.details === 'fragParsingError' && !err.fatal) {
+      try {
+        const cur = hls.currentLevel;
+        const next = (typeof cur === 'number' && cur > 0) ? cur - 1 : cur;
+        if (typeof next === 'number') hls.currentLevel = next; // انزل مستوى
+      } catch (_) {}
+      console.debug('[HLS] soft-recover from fragParsingError');
+      return;
+    }
+
+    if (!err?.fatal) { console.debug('[HLS] non-fatal', err?.details || err); return; }
+
+    if (err.type === 'mediaError') {
+      try { hls.recoverMediaError(); }
+      catch {
+        try { hls.destroy(); } catch(_) {}
+        try { attachHlsWithAvc(video, srcUrl); } catch(_) {}
+      }
+    } else {
+      try { hls.destroy(); } catch(_) {}
+      try { attachHlsWithAvc(video, srcUrl); } catch(_) {}
     }
   });
+
 
   // علاج الجوع
   const starve=()=>{ try{

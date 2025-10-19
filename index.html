@@ -230,16 +230,8 @@
 </script>
   
 <!-- حمّل المحلي، وإن فشل جرّب CDN تلقائياً --><!-- توجيه ورَكر HLS كما لديك -->
-<script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
-
-<!-- HLS (محلي) -->
 <script src="/vendor/hls.min.js" defer></script>
-
-<!-- لا تضع livekit هنا (لا نستخدم onerror inline). سيُحمَّل تلقائيًا من داخل app.js: CDN -> /vendor -->
-
-<script src="/vendor/livekit-client.umd.js" defer crossorigin="anonymous"></script> 
-  
-<!-- تطبيقك -->
+<script src="/vendor/livekit-client.umd.min.js" defer></script>
 <script src="/app.js" defer></script>
 
 </html>

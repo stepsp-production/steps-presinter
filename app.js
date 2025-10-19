@@ -210,6 +210,14 @@ function createVideoElement(url) {
 
   return { wrap, video: v };
 }
+const devices = await navigator.mediaDevices.enumerateDevices();
+const hasCam = devices.some(d => d.kind === 'videoinput');
+const hasMic = devices.some(d => d.kind === 'audioinput');
+
+if (!hasCam && !hasMic) {
+  alert('لم يتم العثور على كاميرا أو مايك في هذا الجهاز.');
+  return;
+}
 
 // ===== LiveKit SDK robust loader (لا يغيّر ميزاتك) =====
 (function setupLiveKitLoader(){

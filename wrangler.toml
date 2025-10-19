@@ -1,8 +1,7 @@
-name = "lk-token"
+name = "steps-livekit-vendor-proxy"
 main = "worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2024-11-20"
 
-[vars]
-LIVEKIT_API_KEY = "APIL7uQa7GDF5Kb"
-LIVEKIT_API_SECRET = "hCMtggFOUHGyJghlxfAm2dHGYwwqEQjBxmFxpqlNjka"
-LIVEKIT_URL = "wss://presinter-stream-gjthpz2z.livekit.cloud"
+routes = [
+  { pattern = "https://steps-presinter-cam.pages.dev/vendor/livekit-client.umd.js", custom_domain = false }
+]

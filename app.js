@@ -398,23 +398,70 @@ let localTracks=[]; // [videoTrack, audioTrack]
 function setLKStatus(txt){ lkStatus.textContent = txt; }
 
 /** يضمن توفر SDK */
-function getLK(){
-  const LK = window.livekitClient || window.LiveKitClient || window.LiveKit;
-  return LK || null;
+// ضع هذا بدلاً من loadLiveKit() و getLK() السابقين
+
+function getLK() {
+  return (
+    window.livekitClient ||
+    window.LiveKitClient ||
+    window.LiveKit ||
+    window.livekit ||
+    window.Livekit || null
+  );
 }
 
-/** فحص الأجهزة قبل طلب createLocalTracks لمعالجة NotFoundError مبكرًا */
-async function assertDevices(){
-  try{
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter(d=>d.kind==='videoinput');
-    const mics = devices.filter(d=>d.kind==='audioinput');
-    if(!cams.length || !mics.length) return {ok:false, cams:cams.length, mics:mics.length};
-    return {ok:true, cams:cams.length, mics:mics.length};
-  }catch(e){
-    return {ok:false, error:e};
-  }
+function waitForLK(timeoutMs=2000) {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    (function loop() {
+      const LK = getLK();
+      if (LK) return resolve(LK);
+      if (performance.now() - t0 > timeoutMs) return resolve(null);
+      setTimeout(loop, 40);
+    })();
+  });
 }
+
+async function loadScriptOnce(src) {
+  // لا تكرر تحميل نفس المصدر
+  if ([...document.scripts].some(s => s.src.endsWith(src))) return;
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.defer = true;
+    s.crossOrigin = 'anonymous';
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function loadLiveKit() {
+  // إن كان جاهزاً بالفعل
+  if (getLK()) return true;
+
+  // 1) جرّب الملف المحلي
+  try {
+    await loadScriptOnce('/vendor/livekit-client.umd.min.js?v=' + Date.now().toString(36));
+  } catch(e) {
+    console.warn('فشل تحميل الملف المحلي LiveKit UMD:', e);
+  }
+  if (await waitForLK(1500)) return true;
+
+  // 2) خطة بديلة: CDN (اسم النتيجة UMD أيضاً)
+  // ملاحظة: تأكّد أن script-src يسمح jsDelivr (أنت أضفته في CSP).
+  try {
+    await loadScriptOnce('https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js');
+  } catch(e) {
+    console.warn('فشل تحميل CDN:', e);
+  }
+  if (await waitForLK(2000)) return true;
+
+  alert('LiveKit SDK غير مُحمَّل — تأكد من وجود /vendor/livekit-client.umd.min.js أو السماح بالـCDN.');
+  console.error('LiveKit object not found after local/CDN load');
+  return false;
+}
+
 
 /** اقتران (سماح) */
 pairBtn.addEventListener('click', async ()=>{

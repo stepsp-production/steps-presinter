@@ -243,14 +243,7 @@ function createVideoElement(url) {
     });
   }
 
-   const devices = await navigator.mediaDevices.enumerateDevices();
-const hasCam = devices.some(d => d.kind === 'videoinput');
-const hasMic = devices.some(d => d.kind === 'audioinput');
 
-if (!hasCam && !hasMic) {
-  alert('لم يتم العثور على كاميرا أو مايك في هذا الجهاز.');
-  return;
-}
   async function ensureLK(){
     // لو الملف المحلي موجود كوسم سكربت عادي سيلتقطه defer تلقائيًا؛ ننتظر DOM ready
     if (document.readyState === 'loading') {

@@ -263,18 +263,18 @@ function loadScript(src){
 async function loadLiveKit(){
   if(getLKGlobal()){ LK=getLKGlobal(); return true; }
   // حاول vendor
-  try{ await loadScript('/vendor/livekit-client.umd.min.js'); }catch(_){}
+  try{ await loadScript('/vendor/livekit-client.umd.js'); }catch(_){}
   if(getLKGlobal()){ LK=getLKGlobal(); return true; }
 
   // jsDelivr
-  try{ await loadScript('https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js'); }catch(_){}
+  try{ await loadScript('https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.js'); }catch(_){}
   if(getLKGlobal()){ LK=getLKGlobal(); return true; }
 
   // unpkg
-  try{ await loadScript('https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.min.js'); }catch(_){}
+  try{ await loadScript('https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.js'); }catch(_){}
   if(getLKGlobal()){ LK=getLKGlobal(); return true; }
 
-  alert('LiveKit SDK غير مُحمّل — تأكد من vendor/livekit-client.umd.min.js أو السماح بالـCDN.');
+  alert('LiveKit SDK غير مُحمّل — تأكد من vendor/livekit-client.umd.js أو السماح بالـCDN.');
   return false;
 }
 

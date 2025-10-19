@@ -227,25 +227,13 @@
 })();
 </script>
   
-<!-- حمّل المحلي، وإن فشل جرّب CDN تلقائياً -->
-<!-- HLS -->
+<!-- حمّل المحلي، وإن فشل جرّب CDN تلقائياً --><!-- توجيه ورَكر HLS كما لديك -->
+<script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
+
+<!-- HLS (محلي) -->
 <script src="/vendor/hls.min.js" defer></script>
 
-<!-- LiveKit: جرّب CDN أولاً، ولو فشل حمّل النسخة المحلية -->
-<script
-  src="https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js"
-  defer
-  crossorigin="anonymous"
-  referrerpolicy="no-referrer"
-  onerror="
-    (function(){
-      var s=document.createElement('script');
-      s.src='/vendor/livekit-client.umd.min.js';
-      s.defer=true;
-      document.head.appendChild(s);
-    })();
-  ">
-</script>
+<!-- لا تضع livekit هنا (لا نستخدم onerror inline). سيُحمَّل تلقائيًا من داخل app.js: CDN -> /vendor -->
 
 <!-- تطبيقك -->
 <script src="/app.js" defer></script>

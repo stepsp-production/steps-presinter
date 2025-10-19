@@ -13,8 +13,8 @@
   connect-src 'self'
                https://hls-proxy.it-f2c.workers.dev
                https://*.trycloudflare.com
-               https://steps-livekit-api.onrender.com
                https://steps-presinter.onrender.com
+               https://steps-livekit-api.onrender.com
                https://cdn.jsdelivr.net
                wss://*.livekit.cloud;
   worker-src  'self' blob:;
@@ -227,13 +227,17 @@
 })();
 </script>
   
-<!-- حمّل المحلي، وإن فشل جرّب CDN تلقائياً -->
-<script
-  src="/vendor/livekit-client.umd.min.js"
-  defer
-  onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js';s.defer=true;document.head.appendChild(s);">
-</script>
+<!-- حمّل المحلي، وإن فشل جرّب CDN تلقائياً --><!-- توجيه ورَكر HLS كما لديك -->
+<script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
 
+<!-- HLS (محلي) -->
+<script src="/vendor/hls.min.js" defer></script>
+
+<!-- لا تضع livekit هنا (لا نستخدم onerror inline). سيُحمَّل تلقائيًا من داخل app.js: CDN -> /vendor -->
+
+ <script src="/vendor/livekit-client.umd.min.js" defer></script> 
+  
+<!-- تطبيقك -->
 <script src="/app.js" defer></script>
 
 </html>

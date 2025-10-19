@@ -76,6 +76,23 @@
 
     #streamPanel{position:absolute;top:0;left:0;height:100%;width:230px;z-index:12;background:none;border-right:none;padding:12px 10px;color:#fff;transition:opacity .18s;pointer-events:auto}
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
+    <!-- قائمة الغرف العائمة (مرتبطة بنفس الـselect الأصلي) -->
+<div id="roomMenu" aria-label="اختيار الغرفة">
+  <label for="roomSelProxy">الغرفة:</label>
+  <select id="roomSelProxy">
+    <option value="room-1">room-1</option>
+    <option value="room-2">room-2</option>
+    <option value="room-3">room-3</option>
+    <option value="room-4">room-4</option>
+    <option value="room-5">room-5</option>
+    <option value="room-6">room-6</option>
+    <option value="room-7">room-7</option>
+    <option value="room-8">room-8</option>
+    <option value="room-9">room-9</option>
+    <option value="room-10">room-10</option>
+  </select>
+</div>
+
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
     .stream-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;cursor:pointer;background:rgba(0,0,0,.30);border:1px solid rgba(255,255,255,.20);backdrop-filter:blur(2px);transition:background .12s,border-color .12s,transform .06s}
     .stream-item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
@@ -105,6 +122,26 @@
     .ok{background:#0fb}.warn{background:#f66}
     .pill{background:#1118;padding:6px 10px;border-radius:999px;border:1px solid #fff2;color:#fff}
     input,select{padding:8px 10px;border-radius:10px;border:1px solid #fff3;background:#111a;color:#fff;min-width:160px}
+    /* قائمة الغرف العائمة */
+#roomMenu {
+  position:absolute; top:12px; left:12px; z-index:14;
+  background: rgba(0,0,0,.25);
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 12px;
+  padding: 8px 10px;
+  backdrop-filter: blur(2px);
+  transition: opacity .18s ease;
+}
+#roomMenu label { color:#fff; font-size:12px; margin-inline-end:6px; opacity:.9 }
+#roomMenu select {
+  padding: 6px 10px; border-radius:10px;
+  border:1px solid #fff3; background:#111a; color:#fff; min-width:120px;
+}
+
+/* اجعلها تشارك نفس منطق الإخفاء/الإظهار */
+.ui-hidden #roomMenu{opacity:0; pointer-events:none}
+.ui-visible #roomMenu{opacity:1; pointer-events:auto}
+
   </style>
 </head>
 

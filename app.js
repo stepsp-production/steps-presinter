@@ -300,24 +300,31 @@ async function __waitForLK(timeoutMs=2500) {
   return !!__pickLK();
 }
 async function loadLiveKit() {
-  if (__lkPromise) return __lkPromise;
-  __lkPromise = (async () => {
-    if (__pickLK()) return true;
+  if (window.livekitClient || window.LiveKitClient || window.LiveKit) return true;
 
-    try { await __createScript('https://cdn.jsdelivr.net/npm/livekit-client@2/dist/livekit-client.umd.min.js'); }
-    catch(_) {}
-    if (await __waitForLK()) return true;
-
-    try { await __createScript('https://unpkg.com/livekit-client@2/dist/livekit-client.umd.min.js'); }
-    catch(_) {}
-    if (await __waitForLK()) return true;
-
-    try { await __createScript('/vendor/livekit-client.umd.min.js?v=' + Date.now().toString(36)); }
-    catch(_) {}
-    if (await __waitForLK()) return true;
-
+  try {
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = '/vendor/livekit-client.umd.min.js?v=' + Date.now().toString(36);
+      s.defer = true;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  } catch (e) {
+    console.error('فشل تحميل LiveKit المحلي:', e);
+    alert('تعذر تحميل مكتبة LiveKit من المسار المحلي. تحقق من وجود الملف داخل /vendor/');
     return false;
-  })();
+  }
+
+  // تأكيد أن الكائن أصبح متاحًا
+  const LK = window.livekitClient || window.LiveKitClient || window.LiveKit;
+  if (!LK) {
+    alert('LiveKit SDK غير محمّل — الملف المحلي لم يُحمّل بنجاح.');
+    return false;
+  }
+  return true;
+}
   return __lkPromise;
 }
 function __requireLiveKitOrAlert() {

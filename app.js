@@ -236,6 +236,31 @@ scrub.addEventListener('input',()=>{ if(started) isScrubbing=true; });
 scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(mainPlayer, parseFloat(scrub.value)||0); mainPlayer.currentTime=nt; if(activePlayer) activePlayer.currentTime=snapIntoBuffer(activePlayer,nt); isScrubbing=false; });
 document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
 
+// ---- LiveKit loader (محلي ثم CDN fallback) ----
+(async () => {
+  function hasLK() {
+    return !!(window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient);
+  }
+  if (hasLK()) return;
+
+  // جرّب التحميل المتأخر من CDN فقط إذا لم يتوفر الملف المحلي
+  const cdn = 'https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.js';
+  try {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = cdn; s.async = true; s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  } catch (_) {}
+
+  // إن لم ينجح التحميل، أعطِ رسالة واضحة (سترى نفس التنبيه السابق)
+  if (!hasLK()) {
+    alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.umd.min.js أو السماح بالـCDN.');
+  }
+})();
+
+
+
 /* ===== LiveKit: اقتران/نشر ===== */
 const LK = window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient; // UMD
 

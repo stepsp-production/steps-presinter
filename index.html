@@ -2,8 +2,9 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 
-  <!-- CSP محسّن -->
+  <!-- CSP -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
@@ -22,14 +23,15 @@
   ">
 
   <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 
   <link rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
   <style>
-    :root{ --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
-           --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26; }
+    :root{
+      --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
+      --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26;
+    }
     *{box-sizing:border-box} html,body{height:100%}
     body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
 
@@ -46,9 +48,9 @@
     .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
 
     /* أوضاع التقسيم */
-    .split.mode1 #mainPreview video, .split.mode1 #activeCam video{object-fit:contain}
-    .split.mode2 #mainPreview video, .split.mode2 #activeCam video{object-fit:contain; transform:scale(1.08); transform-origin:center}
-    .split.mode3 #mainPreview video, .split.mode3 #activeCam video{object-fit:cover}
+    .split.mode1 #mainPreview video,.split.mode1 #activeCam video{object-fit:contain}
+    .split.mode2 #mainPreview video,.split.mode2 #activeCam video{object-fit:contain; transform:scale(1.08); transform-origin:center}
+    .split.mode3 #mainPreview video,.split.mode3 #activeCam video{object-fit:cover}
 
     /* تكبير المعاينة */
     .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
@@ -75,7 +77,7 @@
     #gatePlay{position:absolute;inset:0;z-index:9;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,rgba(0,0,0,.55),rgba(0,0,0,.2))}
     #gatePlay.hidden{display:none}
     .gate-card{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:18px;padding:18px 20px;display:flex;gap:12px;align-items:center;box-shadow:0 10px 40px rgba(0,0,0,.45)}
-    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
+    .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bد);color:#fff;background:#111a;font-size:18px}
     #startBtn{min-width:160px}
 
     /* القائمة الجانبية */
@@ -169,7 +171,7 @@
       <div id="timeLabel">00:00 / 00:00</div>
     </div>
 
-    <!-- رصيف LiveKit السفلي (بديل عن الشريط العلوي) -->
+    <!-- رصيف LiveKit السفلي -->
     <div id="lkDock" aria-label="تحكم LiveKit">
       <div class="field">
         <label for="roomSel">الغرفة:</label>
@@ -195,7 +197,7 @@
     </div>
   </div>
 
-  <!-- توجيه عبر ورَكر -->
+  <!-- توجيه HLS عبر ورَكر -->
   <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
 
   <!-- مصادر البث -->
@@ -226,7 +228,7 @@
     })();
   </script>
 
-  <!-- تحميل المكتبات بالترتيب -->
+  <!-- المكتبات -->
   <script src="/vendor/hls.min.js" defer></script>
   <script src="/vendor/livekit-client.umd.js" defer></script>
   <script src="/app.js" defer></script>

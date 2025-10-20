@@ -53,7 +53,7 @@ function attachHlsWithAvc(video,url){
     if(mx>=0){hls.autoLevelCapping=mx;}
   }catch(e){}});
   hls.on(Hls.Events.ERROR,(_,err)=>{
-    if(!err?.fatal){ console.debug('[HLS] non-fatal', err?.details||err); return; }
+    if(!err?.fatal){ console.debug('[HLS] non-fatal', err?.details || err); return; }
     if(err.type==='mediaError'){ try{hls.recoverMediaError();}catch(e){ try{hls.destroy();}catch(_){} try{attachHlsWithAvc(video,url);}catch(__){} } }
     else { try{hls.destroy();}catch(e){} try{attachHlsWithAvc(video,url);}catch(_){ } }
   });
@@ -98,12 +98,12 @@ const scrub=document.getElementById('scrub');
 const timeLabel=document.getElementById('timeLabel');
 const streamPanel=document.getElementById('streamPanel');
 const streamList=document.getElementById('streamList');
-const lkPanel=document.getElementById('lkPanel');
+const lkDock=document.getElementById('lkDock');
 
 let started=false, splitMode=0, isMainFull=false;
 let mainPlayer, activePlayer, currentCam='cam2';
 let ticker=null, isScrubbing=false;
-const playersCache=new Map();
+const playersCache=new Map(); // id -> {wrap, video, ready}
 const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
 function mountTo(container, node){container.appendChild(node);}
 
@@ -168,11 +168,11 @@ async function setActiveCamSmooth(id){
   setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; }, 180);
 }
 
-/* إخفاء/إظهار تلقائي */
+/* واجهة مخفية تلقائيًا */
 let uiTimer=null;
 function showUI(){root.classList.remove('ui-hidden');root.classList.add('ui-visible');clearTimeout(uiTimer);uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500);}
 ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true}));
-[streamPanel,globalControls,document.getElementById('utilityControls'),lkPanel].forEach(el=>{
+[streamPanel,globalControls,document.getElementById('utilityControls'),lkDock].forEach(el=>{
   if(!el) return;
   el.addEventListener('mouseenter',()=>{clearTimeout(uiTimer);root.classList.remove('ui-hidden');root.classList.add('ui-visible');});
   el.addEventListener('mouseleave',showUI);
@@ -209,7 +209,7 @@ function startTimeTicker(){
   },250);
 }
 
-/* تحكمات */
+/* تحكمات المشغل */
 startBtn.addEventListener('click',startPlayback);
 btnSplit.addEventListener('click',()=>{
   splitMode=(splitMode+1)%4;
@@ -240,30 +240,30 @@ document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMo
 
 /* ===== LiveKit: اقتران/نشر ===== */
 
-/** مرجع ديناميكي للكائن UMD */
+/** احصل على كائن UMD عند الحاجة */
 function getLK(){
   return window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient || null;
 }
 
-/** تحميل من CDN فقط إذا لم يوجد المحلي */
-function loadScriptOnce(src){
-  return new Promise((resolve)=>{ const s=document.createElement('script'); s.src=src; s.async=true;
-    s.onload=()=>resolve(true); s.onerror=()=>resolve(false); document.head.appendChild(s);
+/** فولباك: جرّب تحميل SDK من CDN إذا لم يوجد الملف المحلي */
+function ensureLiveKitLoaded(){
+  return new Promise((resolve)=>{
+    if(getLK()) return resolve(true);
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js';
+    s.async=true;
+    s.onload=()=>resolve(!!getLK());
+    s.onerror=()=>resolve(false);
+    document.head.appendChild(s);
   });
 }
-async function ensureLiveKitLoaded(){
-  if(getLK()) return true;
-  // جرّب jsDelivr ثم unpkg (نسخة غير مصغرة لتخفيف تحذير sourcemap)
-  if(await loadScriptOnce('https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.js')) return !!getLK();
-  if(await loadScriptOnce('https://unpkg.com/livekit-client@2.5.0/dist/livekit-client.umd.js')) return !!getLK();
-  return !!getLK();
-}
 
-const roomSel = document.getElementById('lkRoom');
-const displayName = document.getElementById('lkName');
-const pairBtn = document.getElementById('lkPair');
-const publishBtn = document.getElementById('lkPublish');
-const stopBtn = document.getElementById('lkStop');
+/* عناصر اللوحة العائمة */
+const roomSel = document.getElementById('roomSel');
+const displayName = document.getElementById('displayName');
+const pairBtn = document.getElementById('pairBtn');
+const publishBtn = document.getElementById('publishBtn');
+const stopBtn = document.getElementById('stopBtn');
 const lkStatus = document.getElementById('lkStatus');
 
 let lkRoom=null;
@@ -321,86 +321,74 @@ pairBtn.addEventListener('click', async () => {
 });
 
 publishBtn.addEventListener('click', async () => {
-  if (!ensureSDK()) return;
-
-  try {
+  const LK = getLK();
+  if(!LK){ alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.umd.js أو السماح بالـCDN.'); return; }
+  try{
     publishBtn.disabled = true;
-
     const roomName = roomSel.value || 'room-1';
-    const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2, 8));
+    const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2,8));
 
-    setLKStatus('جلب توكن…');
-    const tokenRes = await fetch(
-      `https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`,
-      { credentials: 'omit' }
-    );
-    if (!tokenRes.ok) {
+    setLKStatus('جلب التوكن…');
+    const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`, {mode:'cors'});
+    if(!res.ok){
       publishBtn.disabled = false;
       alert('فشل طلب التوكن (تحقق من السيرفر/الراوت).');
       setLKStatus('فشل جلب التوكن');
       return;
     }
-    const data = await tokenRes.json();
-    const lkUrl  = data?.url;
-    const lkTok  = data?.token;
-
-    if (!lkUrl || !lkTok) {
+    const { url, token } = await res.json();
+    if(!url || !token){
       publishBtn.disabled = false;
-      alert('استجابة التوكن غير صحيحة. يجب أن تكون: { url, token }');
+      alert('استجابة توكن غير صحيحة. يجب أن تكون: { url, token }');
       setLKStatus('توكن غير صالح');
       return;
     }
 
     setLKStatus('الاتصال بالغرفة…');
     lkRoom = new LK.Room({ adaptiveStream: true, dynacast: true });
-
     lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
-    await lkRoom.connect(lkUrl, lkTok);
+    await lkRoom.connect(url, token);
 
-    // نشر المسارات
     setLKStatus('نشر المسارات…');
-    for (const tr of localTracks) {
-      await lkRoom.localParticipant.publishTrack(tr);
-    }
+    for (const tr of localTracks){ await lkRoom.localParticipant.publishTrack(tr); }
     setLKStatus(`LiveKit: متصل (${roomName})`);
-  } catch (err) {
+  }catch(err){
     console.error('Publish error:', err);
-    alert('تعذر نشر الصوت/الفيديو — تأكد من التوكن والاتصال بالشبكة.');
+    alert('تعذر نشر الصوت/الفيديو — تأكد من الاتصال بالشبكة والتوكن.');
     setLKStatus('فشل النشر');
     publishBtn.disabled = false;
   }
 });
 
 stopBtn.addEventListener('click', () => {
-  try {
-    if (lkRoom) { lkRoom.disconnect(); lkRoom = null; }
-    localTracks.forEach((t) => { try { t.stop(); } catch (_) {} });
-    localTracks = [];
+  try{
+    if(lkRoom){ lkRoom.disconnect(); lkRoom = null; }
+    localTracks.forEach(t=>{try{t.stop();}catch(_){}}); localTracks=[];
     setLKStatus('LiveKit: غير متصل');
     publishBtn.disabled = true;
-    stopBtn.disabled    = true;
-  } catch (e) {}
+    stopBtn.disabled = true;
+  }catch(e){}
 });
 
-/* ===================== Debug اختياري لـ HLS ===================== */
-(function addHlsDebug() {
-  function wireDebug(video) {
-    const h = video && video.__hls; if (!h) return;
-    h.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
-      console.log('[HLS] MANIFEST_PARSED levels=',
-        (data && data.levels || []).map((l) => ({ h: l.height, codecs: l.codecs }))
-      );
-    });
-    h.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-      console.log('[HLS] LEVEL_LOADED targetduration=', data?.details?.targetduration,
-                  'frags=', data?.details?.fragments?.length);
-    });
-    h.on(Hls.Events.ERROR, (_, err) => { console.error('[HLS] ERROR', err?.type, err?.details, err); });
-  }
-  const mo = new MutationObserver(() => {
-    document.querySelectorAll('video').forEach((v) => {
-      if (!v.__debugWired && v.__hls) { v.__debugWired = true; wireDebug(v); }
-    });
+/* تفعيل/تعطيل زر النشر عند تغيّر الأجهزة */
+if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+  navigator.mediaDevices.addEventListener('devicechange', async () => {
+    try{
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      const ok = devs.some(d=>d.kind==='videoinput') || devs.some(d=>d.kind==='audioinput');
+      publishBtn.disabled = !ok || localTracks.length===0;
+    }catch(_){}
   });
-  mo.observe(document.body, { childList: true, subtree: true });
+}
+
+/* ===== Debug HLS (اختياري) ===== */
+(function addHlsDebug(){
+  function wireDebug(video){
+    const h=video && video.__hls; if(!h) return;
+    h.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{console.log('[HLS] MANIFEST_PARSED levels=',(data&&data.levels||[]).map(l=>({h:l.height,codecs:l.codecs})));});
+    h.on(Hls.Events.LEVEL_LOADED,(_,data)=>{console.log('[HLS] LEVEL_LOADED targetduration=',data?.details?.targetduration,'frags=',data?.details?.fragments?.length);});
+    h.on(Hls.Events.ERROR,(_,err)=>{console.error('[HLS] ERROR',err?.type,err?.details,err);});
+  }
+  const mo=new MutationObserver(()=>{document.querySelectorAll('video').forEach(v=>{if(!v.__debugWired && v.__hls){v.__debugWired=true;wireDebug(v);}});});
+  mo.observe(document.body,{childList:true,subtree:true});
 })();

@@ -1,6 +1,6 @@
 /* لا تستخدم import؛ كل شيء UMD من /vendor */
 
-/* ===== ضمان تحميل LiveKit: محلي ثم CDN fallback ===== */
+/* ===== تحميل LiveKit محليًا ثم CDN كاحتياط ===== */
 (function ensureLiveKit(){
   const version = '2.5.0';
   function hasLK(){
@@ -10,13 +10,12 @@
     return new Promise((res,rej)=>{
       const s=document.createElement('script');
       s.src=src; s.async=true; s.crossOrigin='anonymous';
-      s.onload=()=>res(true); s.onerror=(e)=>rej(e);
+      s.onload=()=>res(true); s.onerror=rej;
       document.head.appendChild(s);
     });
   }
   (async ()=>{
-    // انتظر تنفيذ الوسم المحلي (defer) لفترة قصيرة
-    for(let i=0;i<12 && !hasLK();i++) await new Promise(r=>setTimeout(r,120));
+    for(let i=0;i<12 && !hasLK();i++) await new Promise(r=>setTimeout(r,120)); // انتظر وسم /vendor
     if(hasLK()) return;
     try{
       await inject(`https://cdn.jsdelivr.net/npm/livekit-client@${version}/dist/livekit-client.umd.js`);
@@ -59,7 +58,7 @@ const HLS_CFG={
 
 function getSeekableRange(v){try{const r=v.seekable;if(!r||!r.length)return null;return{start:r.start(r.length-1),end:r.end(r.length-1)};}catch(e){return null;}}
 function capLiveEdge(v,t){const m=getSeekableRange(v); if(!m) return t; return Math.min(t, m.end - SAFETY_EDGE);}
-function bufferedAhead(v){try{const b=v.buffered;const t=v.currentTime||0;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);if(t>=s && t<=e) return Math.max(0,e-t);} }catch(e){} return 0;}
+function bufferedAhead(v){try{const b=v.buffered;const t=v.currentTime||0;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);if(t>=س && t<=e) return Math.max(0,e-t);} }catch(e){} return 0;}
 function containsTime(v,t){try{const b=v.buffered;for(let i=0;i<b.length;i++){if(t>=b.start(i)&&t<=b.end(i)) return {start:b.start(i),end:b.end(i)};} }catch(e){} return null;}
 function nearestBufferedTime(v,t){try{const b=v.buffered;let best=null,dm=1e9;for(let i=0;i<b.length;i++){const s=b.start(i),e=b.end(i);const cand=(t<s)?s:(t>e?e:t);const d=Math.abs(cand-t);if(d<dm){dm=d;best=cand;}} return best;}catch(e){return null;}}
 async function waitBufferedAt(v,t,minAhead=SHOW_MIN_BUF,timeout=6000){
@@ -275,12 +274,14 @@ document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMo
 
 /* ===== LiveKit: اقتران/نشر ===== */
 const LK = window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient;
+let lkRoom=null;
+let localTracks=[];
 
 function setLKStatus(txt){ lkStatus.textContent = txt; }
 function haveSDK(){ return !!(LK && LK.Room && LK.createLocalTracks); }
 function showSDKAlert(){ alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.umd.js أو السماح بالـCDN.'); }
 
-/** فحص الأجهزة + استدعاء getUserMedia لتحفيز نافذة الأذونات */
+/** فحص الأجهزة + تحفيز نافذة الأذونات */
 async function ensureDevicesPermission() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
     throw new Error('المتصفح لا يدعم MediaDevices.');
@@ -288,9 +289,7 @@ async function ensureDevicesPermission() {
   const devices = await navigator.mediaDevices.enumerateDevices();
   const hasCam = devices.some(d => d.kind === 'videoinput');
   const hasMic = devices.some(d => d.kind === 'audioinput');
-  if (!hasCam && !hasMic) {
-    throw new Error('لم يتم العثور على كاميرا أو مايك في هذا الجهاز.');
-  }
+  if (!hasCam && !hasMic) throw new Error('لم يتم العثور على كاميرا أو مايك في هذا الجهاز.');
   try {
     const gum = await navigator.mediaDevices.getUserMedia({
       video: hasCam ? { facingMode: 'user' } : false,
@@ -308,7 +307,6 @@ pairBtn.addEventListener('click', async () => {
     setLKStatus('فحص الأجهزة وطلب الأذونات…');
     await ensureDevicesPermission();
 
-    // تهيئة المسارات
     try{ localTracks.forEach(t=>t.stop()); }catch(_){}
     localTracks=[];
 
@@ -357,7 +355,6 @@ publishBtn.addEventListener('click', async () => {
     lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
     await lkRoom.connect(url, token);
 
-    // نشر المسارات
     setLKStatus('نشر المسارات…');
     for (const tr of localTracks){
       await lkRoom.localParticipant.publishTrack(tr);
@@ -382,9 +379,7 @@ stopBtn.addEventListener('click', () => {
   }catch(e){}
 });
 
-/* مستمع لتغييرات الأجهزة */
-let lkRoom=null;
-let localTracks=[];
+/* تغيّر الأجهزة */
 if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
   navigator.mediaDevices.addEventListener('devicechange', async () => {
     try{

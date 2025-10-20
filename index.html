@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-  <!-- CSP: تسمح بـ CDN + WebSocket + البروكسي + خادم التوكن -->
+  <!-- CSP تسمح بـ blob workers + CDN للفولباك -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
@@ -22,16 +22,20 @@
     child-src   'self' blob:;
   ">
 
-  <!-- أذونات -->
+  <!-- إذن الكاميرا/المايك -->
   <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
 
+  <!-- أيقونة -->
   <link rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
   <style>
-    :root{ --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
-           --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26; }
-    *{box-sizing:border-box} html,body{height:100%}
+    :root{
+      --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
+      --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
     body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
 
     #playerContainer{position:relative;width:100vw;height:100vh}
@@ -42,14 +46,15 @@
     #mainPreview:hover{box-shadow:0 10px 30px #0008}
     #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
 
-    /* التقسيم */
+    /* تقسيم */
     .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
     .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
-    .split.mode1 #mainPreview video,.split.mode1 #activeCam video{object-fit:contain}
-    .split.mode2 #mainPreview video,.split.mode2 #activeCam video{object-fit:contain;transform:scale(1.08);transform-origin:center}
-    .split.mode3 #mainPreview video,.split.mode3 #activeCam video{object-fit:cover}
 
-    /* تكبير */
+    .split.mode1 #mainPreview video, .split.mode1 #activeCam  video{object-fit:contain}
+    .split.mode2 #mainPreview video, .split.mode2 #activeCam  video{object-fit:contain; transform:scale(1.08); transform-origin:center}
+    .split.mode3 #mainPreview video, .split.mode3 #activeCam  video{object-fit:cover}
+
+    /* تكبير المعاينة */
     .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
     .main-full #activeCam{display:none}
     .main-full.cover-one #mainPreview video{object-fit:cover}
@@ -57,7 +62,7 @@
     .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
     .split .hint,.main-full .hint{display:none}
 
-    /* أشرطة وأزرار */
+    /* أشرطة/أزرار + إخفاء تلقائي */
     #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
     #utilityControls{top:10px;right:10px}
     #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
@@ -86,33 +91,31 @@
     .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
     .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
 
-    /* إخفاء تلقائي */
+    /* إخفاء/إظهار تلقائي */
     .ui-hidden #streamPanel,
     .ui-hidden #utilityControls,
     .ui-hidden #globalControls,
-    .ui-hidden #lkPanel{opacity:0; pointer-events:none}
+    .ui-hidden #lkDock{opacity:0; pointer-events:none}
     .ui-visible #streamPanel,
     .ui-visible #utilityControls,
     .ui-visible #globalControls,
-    .ui-visible #lkPanel{opacity:1; pointer-events:auto}
+    .ui-visible #lkDock{opacity:1; pointer-events:auto}
 
-    /* لوحة LiveKit العائمة أسفل اليسار */
-    #lkPanel{
-      position:fixed; left:12px; bottom:12px; z-index:21;
-      display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    /* لوحة LiveKit العائمة */
+    #lkDock{
+      position:fixed; bottom:12px; left:12px; z-index:21;
       background:rgba(0,0,0,.28); border:1px solid rgba(255,255,255,.22);
-      border-radius:14px; padding:8px 10px; backdrop-filter:blur(2px);
+      border-radius:14px; padding:10px; backdrop-filter:blur(2px);
+      display:flex; flex-wrap:wrap; gap:8px; align-items:center;
       transition:opacity .18s;
+      max-width:min(96vw,700px);
     }
-    #lkPanel .field{display:flex;align-items:center;gap:6px}
-    #lkPanel label{color:#fff; font-size:12px; opacity:.95}
-    #lkPanel input,#lkPanel select{
-      padding:6px 10px;border-radius:10px;border:1px solid #fff3;background:#111a;color:#fff;min-width:120px
+    #lkDock label{color:#fff; font-size:12px; opacity:.95}
+    #lkDock input,#lkDock select{
+      padding:8px 10px; border-radius:10px; border:1px solid #fff3;
+      background:#111a; color:#fff; min-width:140px
     }
-    #lkPanel .btn{padding:9px 10px;border-radius:10px}
-    #lkPanel .ok{background:#0fb}
-    #lkPanel .warn{background:#f66}
-    #lkPanel .pill{background:#1118;padding:6px 10px;border-radius:999px;border:1px solid #fff2;color:#fff}
+    #lkDock .pill{background:#1118;padding:6px 10px;border-radius:999px;border:1px solid #fff2;color:#fff}
 
     .layer{position:absolute; inset:0;}
     .fade-in{animation:fadeIn .18s ease forwards}
@@ -122,10 +125,10 @@
 
     @media (orientation: portrait){
       #mainPreview{top:12px;right:14px;width:58vw;height:36vh;border-radius:18px}
-      #globalControls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 56px);left:50%;transform:translateX(-50%);width:min(94vw,560px);padding:8px 10px;z-index:9999}
+      #globalControls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 60px);left:50%;transform:translateX(-50%);width:min(94vw,560px);padding:8px 10px;z-index:9999}
       #scrub{width:clamp(140px,56vw,380px)}
       #streamPanel{width:190px}
-      #lkPanel{left:10px;bottom:10px}
+      #lkDock{bottom:12px; left:12px}
     }
   </style>
 </head>
@@ -169,31 +172,27 @@
       <input id="scrub" type="range" min="0" max="0" value="0" step="0.01" aria-label="شريط التقدم">
       <div id="timeLabel">00:00 / 00:00</div>
     </div>
-  </div>
 
-  <!-- لوحة LiveKit العائمة -->
-  <div id="lkPanel" aria-label="تحكم LiveKit">
-    <div class="field">
-      <label for="lkRoom">الغرفة:</label>
-      <select id="lkRoom">
+    <!-- لوحة LiveKit العائمة (أسفل يسار) -->
+    <div id="lkDock" aria-label="تحكم LiveKit">
+      <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
+      <label for="displayName">الاسم:</label>
+      <input id="displayName" placeholder="اسم المتحدث" />
+      <label for="roomSel">الغرفة:</label>
+      <select id="roomSel">
         <option value="room-1">room-1</option><option value="room-2">room-2</option>
         <option value="room-3">room-3</option><option value="room-4">room-4</option>
         <option value="room-5">room-5</option><option value="room-6">room-6</option>
         <option value="room-7">room-7</option><option value="room-8">room-8</option>
         <option value="room-9">room-9</option><option value="room-10">room-10</option>
       </select>
+      <button id="pairBtn">سماح (اقتران)</button>
+      <button id="publishBtn" class="ok" disabled>تشغيل (نشر)</button>
+      <button id="stopBtn" class="warn" disabled>إيقاف</button>
     </div>
-    <div class="field">
-      <label for="lkName">الاسم:</label>
-      <input id="lkName" placeholder="اسم المتحدث" />
-    </div>
-    <button id="lkPair" class="btn">سماح (اقتران)</button>
-    <button id="lkPublish" class="btn ok" disabled>تشغيل (نشر)</button>
-    <button id="lkStop" class="btn warn" disabled>إيقاف</button>
-    <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
   </div>
 
-  <!-- توجيه HLS عبر البروكسي -->
+  <!-- توجيه HLS عبر ورَكر -->
   <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
 
   <!-- مصادر البث -->

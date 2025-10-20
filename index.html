@@ -2,9 +2,8 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
-  <!-- CSP تسمح بـ blob workers + CDN للفولباك -->
+  <!-- CSP محسّن -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
@@ -22,20 +21,16 @@
     child-src   'self' blob:;
   ">
 
-  <!-- إذن الكاميرا/المايك -->
   <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 
-  <!-- أيقونة -->
   <link rel="icon"
         href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
   <style>
-    :root{
-      --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
-      --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
+    :root{ --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
+           --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26; }
+    *{box-sizing:border-box} html,body{height:100%}
     body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
 
     #playerContainer{position:relative;width:100vw;height:100vh}
@@ -46,13 +41,14 @@
     #mainPreview:hover{box-shadow:0 10px 30px #0008}
     #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
 
-    /* تقسيم */
+    /* تقسيم (MAIN يمين دائمًا) */
     .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
     .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
 
-    .split.mode1 #mainPreview video, .split.mode1 #activeCam  video{object-fit:contain}
-    .split.mode2 #mainPreview video, .split.mode2 #activeCam  video{object-fit:contain; transform:scale(1.08); transform-origin:center}
-    .split.mode3 #mainPreview video, .split.mode3 #activeCam  video{object-fit:cover}
+    /* أوضاع التقسيم */
+    .split.mode1 #mainPreview video, .split.mode1 #activeCam video{object-fit:contain}
+    .split.mode2 #mainPreview video, .split.mode2 #activeCam video{object-fit:contain; transform:scale(1.08); transform-origin:center}
+    .split.mode3 #mainPreview video, .split.mode3 #activeCam video{object-fit:cover}
 
     /* تكبير المعاينة */
     .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
@@ -83,15 +79,15 @@
     #startBtn{min-width:160px}
 
     /* القائمة الجانبية */
-    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;}
+    #streamPanel{position:absolute; top:0; left:0; height:100%; width:230px; z-index:12; background:none; border-right:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;}
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
-    .stream-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20); backdrop-filter: blur(2px); transition:background .12s, border-color .12s;}
+    .stream-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20); backdrop-filter: blur(2px); transition:background .12s, border-color .12s, transform .06s;}
     .stream-item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
     .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
     .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
 
-    /* إخفاء/إظهار تلقائي */
+    /* إخفاء واجهة التحكم تلقائيًا */
     .ui-hidden #streamPanel,
     .ui-hidden #utilityControls,
     .ui-hidden #globalControls,
@@ -101,22 +97,6 @@
     .ui-visible #globalControls,
     .ui-visible #lkDock{opacity:1; pointer-events:auto}
 
-    /* لوحة LiveKit العائمة */
-    #lkDock{
-      position:fixed; bottom:12px; left:12px; z-index:21;
-      background:rgba(0,0,0,.28); border:1px solid rgba(255,255,255,.22);
-      border-radius:14px; padding:10px; backdrop-filter:blur(2px);
-      display:flex; flex-wrap:wrap; gap:8px; align-items:center;
-      transition:opacity .18s;
-      max-width:min(96vw,700px);
-    }
-    #lkDock label{color:#fff; font-size:12px; opacity:.95}
-    #lkDock input,#lkDock select{
-      padding:8px 10px; border-radius:10px; border:1px solid #fff3;
-      background:#111a; color:#fff; min-width:140px
-    }
-    #lkDock .pill{background:#1118;padding:6px 10px;border-radius:999px;border:1px solid #fff2;color:#fff}
-
     .layer{position:absolute; inset:0;}
     .fade-in{animation:fadeIn .18s ease forwards}
     .fade-out{animation:fadeOut .18s ease forwards}
@@ -125,11 +105,27 @@
 
     @media (orientation: portrait){
       #mainPreview{top:12px;right:14px;width:58vw;height:36vh;border-radius:18px}
-      #globalControls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 60px);left:50%;transform:translateX(-50%);width:min(94vw,560px);padding:8px 10px;z-index:9999}
+      #globalControls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);left:50%;transform:translateX(-50%);width:min(94vw,560px);padding:8px 10px;z-index:9999}
       #scrub{width:clamp(140px,56vw,380px)}
       #streamPanel{width:190px}
-      #lkDock{bottom:12px; left:12px}
     }
+
+    /* رصيف LiveKit السفلي */
+    #lkDock{
+      position:absolute; left:12px; right:12px;
+      bottom:12px; z-index:20;
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+      background:rgba(0,0,0,.25); backdrop-filter:blur(3px);
+      border:1px solid rgba(255,255,255,.22); border-radius:14px;
+      padding:10px;
+      transition:opacity .18s ease;
+    }
+    #lkDock .field{display:flex;align-items:center;gap:6px}
+    #lkDock input,#lkDock select{padding:8px 10px;border-radius:10px;border:1px solid #fff3;background:#111a;color:#fff;min-width:150px}
+    #lkDock .pill{background:#1118;padding:6px 10px;border-radius:999px;border:1px solid #fff2;color:#fff}
+    #lkDock .btn{padding:10px 12px;border-radius:10px}
+    #lkDock .ok{background:#0fb}
+    #lkDock .warn{background:#f66}
   </style>
 </head>
 
@@ -173,26 +169,33 @@
       <div id="timeLabel">00:00 / 00:00</div>
     </div>
 
-    <!-- لوحة LiveKit العائمة (أسفل يسار) -->
+    <!-- رصيف LiveKit السفلي (بديل عن الشريط العلوي) -->
     <div id="lkDock" aria-label="تحكم LiveKit">
+      <div class="field">
+        <label for="roomSel">الغرفة:</label>
+        <select id="roomSel">
+          <option value="room-1">room-1</option><option value="room-2">room-2</option>
+          <option value="room-3">room-3</option><option value="room-4">room-4</option>
+          <option value="room-5">room-5</option><option value="room-6">room-6</option>
+          <option value="room-7">room-7</option><option value="room-8">room-8</option>
+          <option value="room-9">room-9</option><option value="room-10">room-10</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>الهوية/الاسم:</label>
+        <input id="displayName" placeholder="اسم المتحدث" />
+      </div>
+
+      <button id="pairBtn" class="btn">سماح (اقتران)</button>
+      <button id="publishBtn" class="btn ok" disabled>تشغيل (نشر)</button>
+      <button id="stopBtn" class="btn warn" disabled>إيقاف</button>
+
       <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
-      <label for="displayName">الاسم:</label>
-      <input id="displayName" placeholder="اسم المتحدث" />
-      <label for="roomSel">الغرفة:</label>
-      <select id="roomSel">
-        <option value="room-1">room-1</option><option value="room-2">room-2</option>
-        <option value="room-3">room-3</option><option value="room-4">room-4</option>
-        <option value="room-5">room-5</option><option value="room-6">room-6</option>
-        <option value="room-7">room-7</option><option value="room-8">room-8</option>
-        <option value="room-9">room-9</option><option value="room-10">room-10</option>
-      </select>
-      <button id="pairBtn">سماح (اقتران)</button>
-      <button id="publishBtn" class="ok" disabled>تشغيل (نشر)</button>
-      <button id="stopBtn" class="warn" disabled>إيقاف</button>
     </div>
   </div>
 
-  <!-- توجيه HLS عبر ورَكر -->
+  <!-- توجيه عبر ورَكر -->
   <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
 
   <!-- مصادر البث -->
@@ -212,18 +215,18 @@
       };
       window.channelMap=[
         {id:'main',label:'MAIN',src:sources.main},
-        {id:'cam1',label:'CAM1',src:sources.cam1},
-        {id:'cam2',label:'CAM2',src:sources.cam2},
-        {id:'cam3',label:'CAM3',src:sources.cam3},
-        {id:'cam4',label:'CAM4',src:sources.cam4},
-        {id:'cam5',label:'CAM5',src:sources.cam5},
-        {id:'cam6',label:'DRONE',src:sources.cam6},
-        {id:'cam7',label:'SINEFLEX',src:sources.cam7}
+        {id:'cam1',label:'Cam1',src:sources.cam1},
+        {id:'cam2',label:'Cam2',src:sources.cam2},
+        {id:'cam3',label:'Cam3',src:sources.cam3},
+        {id:'cam4',label:'Cam4',src:sources.cam4},
+        {id:'cam5',label:'Cam5',src:sources.cam5},
+        {id:'cam6',label:'Drone',src:sources.cam6},
+        {id:'cam7',label:'Sineflex',src:sources.cam7},
       ];
     })();
   </script>
 
-  <!-- ترتيب التحميل: HLS ثم LiveKit (محلي) ثم تطبيقك -->
+  <!-- تحميل المكتبات بالترتيب -->
   <script src="/vendor/hls.min.js" defer></script>
   <script src="/vendor/livekit-client.umd.js" defer></script>
   <script src="/app.js" defer></script>

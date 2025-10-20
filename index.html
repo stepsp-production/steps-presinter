@@ -199,7 +199,7 @@
   </script>
 
 <script src="/vendor/hls.min.js" defer></script>
-<script src="/vendor/livekit-client.umd.min.js" defer></script>
+<script src="/vendor/livekit-client.umd.js" defer></script>
 
   <script>
 (function(){
@@ -214,7 +214,7 @@
     document.head.appendChild(s);
   }
   if(!hasLK()){
-    load('/vendor/livekit-client.umd.min.js', function(){
+    load('/vendor/livekit-client.umd.js', function(){
       console.log('LiveKit local loaded');
     }, function(){
       // fallback إلى CDN (أضف https://cdn.jsdelivr.net في connect-src لو تريد sourcemap)

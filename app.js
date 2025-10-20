@@ -250,7 +250,8 @@ function ensureLiveKitLoaded(){
   return new Promise((resolve)=>{
     if(getLK()) return resolve(true);
     const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.js';
+    // نستخدم نسخة min من CDN كخطة بديلة، لا يؤثر على المحلي
+    s.src='https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.min.js';
     s.async=true;
     s.onload=()=>resolve(!!getLK());
     s.onerror=()=>resolve(false);
@@ -322,7 +323,7 @@ pairBtn.addEventListener('click', async () => {
 
 publishBtn.addEventListener('click', async () => {
   const LK = getLK();
-  if(!LK){ alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.js أو السماح بالـCDN.'); return; }
+  if(!LK){ alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.umd.js أو السماح بالـCDN.'); return; }
   try{
     publishBtn.disabled = true;
     const roomName = roomSel.value || 'room-1';

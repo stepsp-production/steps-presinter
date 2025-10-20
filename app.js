@@ -53,7 +53,7 @@ function attachHlsWithAvc(video,url){
     if(mx>=0){hls.autoLevelCapping=mx;}
   }catch(e){}});
   hls.on(Hls.Events.ERROR,(_,err)=>{
-    if(!err?.fatal){ console.debug('[HLS] non-fatal', err?.details||err); return; }
+    if(!err?.fatal){ console.debug('[HLS] non-fatal', err?.details || err); return; }
     if(err.type==='mediaError'){ try{hls.recoverMediaError();}catch(e){ try{hls.destroy();}catch(_){} try{attachHlsWithAvc(video,url);}catch(__){} } }
     else { try{hls.destroy();}catch(e){} try{attachHlsWithAvc(video,url);}catch(_){ } }
   });
@@ -98,11 +98,12 @@ const scrub=document.getElementById('scrub');
 const timeLabel=document.getElementById('timeLabel');
 const streamPanel=document.getElementById('streamPanel');
 const streamList=document.getElementById('streamList');
+const roomMenu=document.getElementById('roomMenu');
 
 let started=false, splitMode=0, isMainFull=false;
 let mainPlayer, activePlayer, currentCam='cam2';
 let ticker=null, isScrubbing=false;
-const playersCache=new Map(); // id -> {wrap, video, ready}
+const playersCache=new Map();
 const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
 function mountTo(container, node){container.appendChild(node);}
 
@@ -171,7 +172,8 @@ async function setActiveCamSmooth(id){
 let uiTimer=null;
 function showUI(){root.classList.remove('ui-hidden');root.classList.add('ui-visible');clearTimeout(uiTimer);uiTimer=setTimeout(()=>{root.classList.add('ui-hidden');root.classList.remove('ui-visible');},2500);}
 ['mousemove','touchstart','keydown'].forEach(ev=>document.addEventListener(ev,showUI,{passive:true}));
-[streamPanel,globalControls,document.getElementById('utilityControls')].forEach(el=>{
+[streamPanel,globalControls,document.getElementById('utilityControls'),roomMenu].forEach(el=>{
+  if(!el) return;
   el.addEventListener('mouseenter',()=>{clearTimeout(uiTimer);root.classList.remove('ui-hidden');root.classList.add('ui-visible');});
   el.addEventListener('mouseleave',showUI);
 });
@@ -237,7 +239,24 @@ scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(
 document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
 
 /* ===== LiveKit: اقتران/نشر ===== */
-const LK = window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient; // UMD
+
+/** الوصول إلى كائن UMD كل مرة (بدلاً من ثابت لا يتحدّث) */
+function getLK(){
+  return window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient || null;
+}
+
+/** فولباك تحميل SDK من CDN إذا لم يوجد الملف المحلي */
+function ensureLiveKitLoaded(){
+  return new Promise((resolve)=>{
+    if(getLK()) return resolve(true);
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/livekit-client@2.5.0/dist/livekit-client.umd.js';
+    s.async=true;
+    s.onload=()=>resolve(!!getLK());
+    s.onerror=()=>resolve(false);
+    document.head.appendChild(s);
+  });
+}
 
 const roomSel = document.getElementById('roomSel');
 const displayName = document.getElementById('displayName');
@@ -247,60 +266,50 @@ const stopBtn = document.getElementById('stopBtn');
 const lkStatus = document.getElementById('lkStatus');
 
 let lkRoom=null;
-let localTracks=[];  // [cameraTrack, micTrack]
+let localTracks=[];  // [videoTrack, audioTrack]
 
 function setLKStatus(txt){ lkStatus.textContent = txt; }
-function haveSDK(){
-  return !!(LK && LK.Room && LK.createLocalTracks);
-}
-function showSDKAlert(){
-  alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.umd.js أو السماح بالـCDN.');
-}
 
-/** فحص الأجهزة + استدعاء getUserMedia لتحفيز نافذة الأذونات على iOS/سطح المكتب */
+/** فحص الأجهزة + تحفيز نافذة الأذونات */
 async function ensureDevicesPermission() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
     throw new Error('المتصفح لا يدعم MediaDevices.');
   }
-
-  // 1) هل توجد أجهزة؟
   const devices = await navigator.mediaDevices.enumerateDevices();
   const hasCam = devices.some(d => d.kind === 'videoinput');
   const hasMic = devices.some(d => d.kind === 'audioinput');
-
   if (!hasCam && !hasMic) {
     throw new Error('لم يتم العثور على كاميرا أو مايك في هذا الجهاز.');
   }
-
-  // 2) تحفيز نافذة الأذونات (خصوصًا iOS) بمحاولة تدفق بسيط ثم إيقافه
   try {
     const gum = await navigator.mediaDevices.getUserMedia({
       video: hasCam ? { facingMode: 'user' } : false,
       audio: hasMic ? true : false
     });
     gum.getTracks().forEach(t => t.stop());
-  } catch (err) {
-    // رفض أذونات أو Blocked
+  } catch {
     throw new Error('تعذر الوصول للكاميرا/المايك — تحقق من الأذونات ثم أعد المحاولة.');
   }
 }
 
 pairBtn.addEventListener('click', async () => {
   try{
-    if(!haveSDK()){ showSDKAlert(); return; }
+    const ok = await ensureLiveKitLoaded();
+    const LK = getLK();
+    if(!ok || !LK){ alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.umd.js أو السماح بالـCDN.'); return; }
 
     setLKStatus('فحص الأجهزة وطلب الأذونات…');
-    await ensureDevicesPermission(); // ← هنا الإضافة الأساسية
+    await ensureDevicesPermission();
 
-    // تهيئة المسارات عبر LiveKit بعد التأكد من الأذونات
+    // إيقاف أي تراكات سابقة
     localTracks.forEach(t=>{try{t.stop();}catch(_){}}); localTracks=[];
 
     const tracks = await LK.createLocalTracks({
       audio: true,
       video: { facingMode: 'user', resolution: LK.VideoPresets.h720 }
     });
-
     localTracks = tracks;
+
     setLKStatus('جاهز للنشر');
     publishBtn.disabled = false;
     stopBtn.disabled = false;
@@ -312,13 +321,14 @@ pairBtn.addEventListener('click', async () => {
 });
 
 publishBtn.addEventListener('click', async () => {
-  if(!haveSDK()){ showSDKAlert(); return; }
+  const LK = getLK();
+  if(!LK){ alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.js أو السماح بالـCDN.'); return; }
   try{
     publishBtn.disabled = true;
     const roomName = roomSel.value || 'room-1';
     const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2,8));
 
-    setLKStatus('جلب توكن…');
+    setLKStatus('جلب التوكن…');
     const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`, {mode:'cors'});
     if(!res.ok){
       publishBtn.disabled = false;
@@ -326,8 +336,7 @@ publishBtn.addEventListener('click', async () => {
       setLKStatus('فشل جلب التوكن');
       return;
     }
-    const data = await res.json();
-    const url = data.url, token = data.token;
+    const { url, token } = await res.json();
     if(!url || !token){
       publishBtn.disabled = false;
       alert('استجابة توكن غير صحيحة. يجب أن تكون: { url, token }');
@@ -340,11 +349,8 @@ publishBtn.addEventListener('click', async () => {
     lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
     await lkRoom.connect(url, token);
 
-    // نشر المسارات
     setLKStatus('نشر المسارات…');
-    for (const tr of localTracks){
-      await lkRoom.localParticipant.publishTrack(tr);
-    }
+    for (const tr of localTracks){ await lkRoom.localParticipant.publishTrack(tr); }
     setLKStatus(`LiveKit: متصل (${roomName})`);
   }catch(err){
     console.error('Publish error:', err);
@@ -364,7 +370,7 @@ stopBtn.addEventListener('click', () => {
   }catch(e){}
 });
 
-/* مستمع لتغييرات الأجهزة: يُعيد تمكين النشر تلقائيًا عند توصيل كاميرا/مايك */
+/* تفعيل/تعطيل زر النشر عند تغير الأجهزة */
 if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
   navigator.mediaDevices.addEventListener('devicechange', async () => {
     try{

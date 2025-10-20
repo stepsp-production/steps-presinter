@@ -3,8 +3,7 @@
 <head>
   <meta charset="utf-8" />
 
-  <!-- CSP مضبوطة لتسمح بالـ blob workers و CDN الخاص بـ LiveKit -->
-  <meta http-equiv="Content-Security-Policy" content="
+<meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
   script-src  'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
   style-src   'self' 'unsafe-inline';
@@ -17,48 +16,36 @@
                https://steps-presinter.onrender.com
                https://steps-livekit-api.onrender.com
                https://cdn.jsdelivr.net
-               https://unpkg.com
                wss://*.livekit.cloud;
   worker-src  'self' blob:;
   child-src   'self' blob:;
 ">
 
-
-  <!-- صلاحيات الكاميرا/المايك -->
   <meta http-equiv="Permissions-Policy" content="camera=(self), microphone=(self)">
 
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-
-  <!-- أيقونة -->
   <link rel="icon"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230b0b0f'/%3E%3Cpolygon points='26,20 26,44 46,32' fill='%2300c19a'/%3E%3C/svg%3E" />
 
   <style>
-    :root{
-      --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
-      --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26;
-    }
+    :root{ --btn-bg:#00c19a; --btn-bg-h:#00ad8a; --btn-bg-a:#009e7e; --btn-txt:#fff;
+           --panel-bg:#0b0b0fe6; --panel-bd:#ffffff26; }
     *{box-sizing:border-box} html,body{height:100%}
     body{margin:0;background:#000;overflow:hidden;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
 
     #playerContainer{position:relative;width:100vw;height:100vh}
     .videoFrame{position:absolute;top:0;right:0;width:100%;height:100%;background:#000;overflow:hidden}
 
-    /* المعاينة المصغّرة */
     #mainPreview{position:absolute;top:16px;right:20px;width:22%;height:24%;z-index:6;border:1px solid #fff2;border-radius:18px;cursor:pointer;transition:transform .18s,box-shadow .18s,width .18s,height .18s,top .18s,right .18s,left .18s}
     #mainPreview:hover{box-shadow:0 10px 30px #0008}
     #mainPreview video{display:block;width:100%;height:100%;object-fit:contain}
 
-    /* تقسيم (MAIN يمين دائمًا) */
     .split #mainPreview{top:0;right:0;width:50%;height:100%;border:0;border-radius:0;cursor:default}
     .split #activeCam{top:0;left:0;right:auto;width:50%;height:100%}
 
-    /* أوضاع التقسيم */
-    .split.mode1 #mainPreview video, .split.mode1 #activeCam  video{object-fit:contain}
-    .split.mode2 #mainPreview video, .split.mode2 #activeCam  video{object-fit:contain; transform:scale(1.08); transform-origin:center}
-    .split.mode3 #mainPreview video, .split.mode3 #activeCam  video{object-fit:cover}
+    .split.mode1 #mainPreview video,.split.mode1 #activeCam video{object-fit:contain}
+    .split.mode2 #mainPreview video,.split.mode2 #activeCam video{object-fit:contain;transform:scale(1.08);transform-origin:center}
+    .split.mode3 #mainPreview video,.split.mode3 #activeCam video{object-fit:cover}
 
-    /* تكبير المعاينة */
     .main-full #mainPreview{top:0;right:0;width:100%;height:100%;z-index:7;border:0;border-radius:0;cursor:zoom-out}
     .main-full #activeCam{display:none}
     .main-full.cover-one #mainPreview video{object-fit:cover}
@@ -66,7 +53,6 @@
     .hint{position:absolute;top:20px;right:20px;z-index:8;background:#000a;color:#fff;padding:6px 10px;border-radius:999px;font-size:12px;border:1px solid #fff2}
     .split .hint,.main-full .hint{display:none}
 
-    /* الأزرار + الإخفاء التلقائي */
     #utilityControls,#globalControls{position:absolute;z-index:12;display:flex;gap:8px;flex-wrap:wrap;transition:opacity .18s}
     #utilityControls{top:10px;right:10px}
     #globalControls{bottom:70px;left:50%;transform:translateX(-50%);background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);align-items:center;min-width:340px}
@@ -86,61 +72,42 @@
     .gate-card .icon{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:1px solid var(--panel-bd);color:#fff;background:#111a;font-size:18px}
     #startBtn{min-width:160px}
 
-    /* القائمة الجانبية (مصادر البث) */
-    #streamPanel{
-      position:absolute; top:0; left:0; height:100%; width:230px; z-index:12;
-      background:none; padding:12px 10px; color:#fff; transition:opacity .18s; pointer-events:auto;
-    }
+    #streamPanel{position:absolute;top:0;left:0;height:100%;width:230px;z-index:12;background:none;border-right:none;padding:12px 10px;color:#fff;transition:opacity .18s;pointer-events:auto}
     #streamPanel .panel-title{font-weight:900;letter-spacing:.8px;margin:6px 6px 12px;font-size:13px;text-shadow:0 1px 2px #000}
     #streamList{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;max-height:calc(100% - 48px);overflow:auto}
-    .stream-item{
-      display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer;
-      background:rgba(0,0,0,.30); border:1px solid rgba(255,255,255,.20);
-      backdrop-filter: blur(2px);
-      transition:background .12s, border-color .12s;
-    }
+    .stream-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;cursor:pointer;background:rgba(0,0,0,.30);border:1px solid rgba(255,255,255,.20);backdrop-filter:blur(2px);transition:background .12s,border-color .12s,transform .06s}
     .stream-item:hover{background:rgba(0,0,0,.38);border-color:#ffffff35}
     .stream-item.active{background:rgba(0,0,0,.55);border-color:#ffffff60}
-    .stream-name{font-weight:800; font-size:12px; letter-spacing:.4px; text-transform:uppercase}
+    .stream-name{font-weight:800;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
 
-    /* شريط التحكم + قائمة الغرف (شفافة وتختفي/تظهر مع الحركة) */
-    .chrome{position:fixed;top:12px;inset-inline:12px;z-index:20}
-    .bar{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:16px;padding:10px;display:flex;gap:10px;align-items:center}
-    .field{display:flex;align-items:center;gap:6px}
-    .pill{background:#1118;padding:6px 10px;border-radius:999px;border:1px solid #fff2;color:#fff}
-    input,select{padding:8px 10px;border-radius:10px;border:1px solid #fff3;background:#111a;color:#fff;min-width:160px}
+    .ui-hidden #streamPanel,.ui-hidden #utilityControls,.ui-hidden #globalControls{opacity:0;pointer-events:none}
+    .ui-visible #streamPanel,.ui-visible #utilityControls,.ui-visible #globalControls{opacity:1;pointer-events:auto}
 
-    /* إخفاء واجهة التحكم تلقائيًا */
-    .ui-hidden #streamPanel,
-    .ui-hidden #utilityControls,
-    .ui-hidden #globalControls,
-    .ui-hidden #roomDock,
-    .ui-hidden .chrome{opacity:0; pointer-events:none}
-    .ui-visible #streamPanel,
-    .ui-visible #utilityControls,
-    .ui-visible #globalControls,
-    .ui-visible #roomDock,
-    .ui-visible .chrome{opacity:1; pointer-events:auto}
+    .layer{position:absolute;inset:0}
+    .fade-in{animation:fadeIn .18s ease forwards}
+    .fade-out{animation:fadeOut .18s ease forwards}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes fadeOut{from{opacity:1}to{opacity:0}}
 
-    /* قائمة الغرف العائمة */
-    #roomDock{position:fixed; top:12px; left:12px; z-index:21;}
-    #roomDock .dock{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:16px;padding:8px;display:flex;gap:8px;align-items:center}
-    #roomDock .dock:hover{box-shadow:0 8px 24px rgba(0,0,0,.35)}
-    #roomDock .rooms{display:none}
-    #roomDock:hover .rooms{display:block}
-
-    @media (orientation: portrait){
+    @media (orientation:portrait){
       #mainPreview{top:12px;right:14px;width:58vw;height:36vh;border-radius:18px}
       #globalControls{position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);left:50%;transform:translateX(-50%);width:min(94vw,560px);padding:8px 10px;z-index:9999}
       #scrub{width:clamp(140px,56vw,380px)}
       #streamPanel{width:190px}
     }
+
+    .chrome{position:fixed;top:12px;inset-inline:12px;z-index:20}
+    .bar{background:var(--panel-bg);border:1px solid var(--panel-bd);border-radius:16px;padding:10px;display:flex;gap:10px;align-items:center}
+    .field{display:flex;align-items:center;gap:6px}
+    .btn{padding:10px 12px;border-radius:10px}
+    .ok{background:#0fb}.warn{background:#f66}
+    .pill{background:#1118;padding:6px 10px;border-radius:999px;border:1px solid #fff2;color:#fff}
+    input,select{padding:8px 10px;border-radius:10px;border:1px solid #fff3;background:#111a;color:#fff;min-width:160px}
   </style>
 </head>
 
 <body>
   <div id="playerContainer" class="ui-visible" aria-label="مشغّل متعدد الكاميرات">
-    <!-- القائمة الجانبية لمصادر البث -->
     <aside id="streamPanel" aria-label="مصادر البث">
       <div class="panel-title">SOURCES</div>
       <ul id="streamList"></ul>
@@ -150,7 +117,6 @@
     <div id="mainPreview" class="videoFrame" title="انقر للتكبير/التصغير" aria-label="المعاينة الرئيسية المصغّرة"></div>
     <div class="hint">انقر على المعاينة للتكبير • أو اضغط F</div>
 
-    <!-- بوابة البدء -->
     <div id="gatePlay" role="dialog" aria-modal="true" aria-label="بدء التشغيل">
       <div class="gate-card">
         <div class="icon">▶</div>
@@ -162,14 +128,12 @@
       </div>
     </div>
 
-    <!-- أدوات -->
     <div id="utilityControls" role="toolbar" aria-label="أدوات">
       <button id="btnSplit" aria-label="تبديل وضع التقسيم" title="تقسيم">تقسيم</button>
       <button id="btnFill"  aria-label="تبديل ملء المحتوى" title="ملء">ملء</button>
       <button id="btnSound" aria-label="تشغيل/إيقاف الصوت" title="صوت">🔊/🔇</button>
     </div>
 
-    <!-- الشريط الموحّد -->
     <div id="globalControls" class="hidden" role="group" aria-label="تحكم موحّد">
       <button id="gBack" title="⏪ -5s">⏪ 5s</button>
       <button id="gPlay" title="⏯">⏯</button>
@@ -179,29 +143,11 @@
     </div>
   </div>
 
-  <!-- شريط LiveKit -->
   <div class="chrome" id="chrome">
     <div class="bar">
       <h1 style="margin-inline-end:8px">لوحة البث المتعدد</h1>
-
       <div class="field">
-        <label>الهوية/الاسم:</label>
-        <input id="displayName" placeholder="اسم المتحدث" />
-      </div>
-
-      <button id="pairBtn">سماح (اقتران)</button>
-      <button id="publishBtn" class="ok" disabled>تشغيل (نشر)</button>
-      <button id="stopBtn" class="warn" disabled>إيقاف</button>
-
-      <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
-    </div>
-  </div>
-
-  <!-- قائمة الغرف (عائمة، شفافة، تُظهر عند التحويم) -->
-  <div id="roomDock" title="اختر الغرفة">
-    <div class="dock">
-      <strong style="color:#fff">الغرفة</strong>
-      <div class="rooms">
+        <label>الغرفة:</label>
         <select id="roomSel">
           <option value="room-1">room-1</option><option value="room-2">room-2</option>
           <option value="room-3">room-3</option><option value="room-4">room-4</option>
@@ -210,10 +156,18 @@
           <option value="room-9">room-9</option><option value="room-10">room-10</option>
         </select>
       </div>
+      <div class="field">
+        <label>الهوية/الاسم:</label>
+        <input id="displayName" placeholder="اسم المتحدث" />
+      </div>
+      <button id="pairBtn" class="btn">سماح (اقتران)</button>
+      <button id="publishBtn" class="btn ok" disabled>تشغيل (نشر)</button>
+      <button id="stopBtn" class="btn warn" disabled>إيقاف</button>
+      <span class="pill">الحالة: <b id="lkStatus">LiveKit: غير متصل</b></span>
     </div>
   </div>
 
-  <!-- ضبط الـ HLS proxy -->
+  <!-- توجيه عبر ورَكر -->
   <script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
 
   <!-- مصادر البث -->
@@ -233,24 +187,57 @@
       };
       window.channelMap=[
         {id:'main',label:'MAIN',src:sources.main},
-        {id:'cam1',label:'CAM1',src:sources.cam1},
-        {id:'cam2',label:'CAM2',src:sources.cam2},
-        {id:'cam3',label:'CAM3',src:sources.cam3},
-        {id:'cam4',label:'CAM4',src:sources.cam4},
-        {id:'cam5',label:'CAM5',src:sources.cam5},
-        {id:'cam6',label:'DRONE',src:sources.cam6},
-        {id:'cam7',label:'SINEFLEX',src:sources.cam7},
+        {id:'cam1',label:'Cam1',src:sources.cam1},
+        {id:'cam2',label:'Cam2',src:sources.cam2},
+        {id:'cam3',label:'Cam3',src:sources.cam3},
+        {id:'cam4',label:'Cam4',src:sources.cam4},
+        {id:'cam5',label:'Cam5',src:sources.cam5},
+        {id:'cam6',label:'Drone',src:sources.cam6},
+        {id:'cam7',label:'Sineflex',src:sources.cam7},
       ];
     })();
   </script>
 
-  <!-- مكتبات -->
-  <script src="/vendor/hls.min.js" defer></script>
-  <!-- لا نحمّل livekit هنا؛ سيُحمّل ديناميكيًا داخل app.js مع fallback -->
+<script src="/vendor/hls.min.js" defer></script>
+<script src="/vendor/livekit-client.umd.min.js" defer></script>
 
-  <script src="/vendor/livekit-client.umd.js" defer crossorigin="anonymous"></script>
-
+  <script>
+(function(){
+  function hasLK(){
+    return (window.livekit && window.livekit.Room) ||
+           (window.LiveKitClient && window.LiveKitClient.Room) ||
+           (window.LiveKit && window.LiveKit.Room);
+  }
+  function load(src, onload, onerror){
+    var s=document.createElement('script');
+    s.src=src; s.defer=true; s.onload=onload; s.onerror=onerror;
+    document.head.appendChild(s);
+  }
+  if(!hasLK()){
+    load('/vendor/livekit-client.umd.min.js', function(){
+      console.log('LiveKit local loaded');
+    }, function(){
+      // fallback إلى CDN (أضف https://cdn.jsdelivr.net في connect-src لو تريد sourcemap)
+      load('https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.js',
+        function(){ console.log('LiveKit CDN loaded'); },
+        function(){ alert('تعذّر تحميل LiveKit SDK محليًا وCDN'); }
+      );
+    });
+  }
+})();
+</script>
   
-  <script src="/app.js" defer></script>
-</body>
+<!-- حمّل المحلي، وإن فشل جرّب CDN تلقائياً --><!-- توجيه ورَكر HLS كما لديك -->
+<script>window.HLS_BASE="https://hls-proxy.it-f2c.workers.dev";</script>
+
+<!-- HLS (محلي) -->
+<script src="/vendor/hls.min.js" defer></script>
+
+<!-- لا تضع livekit هنا (لا نستخدم onerror inline). سيُحمَّل تلقائيًا من داخل app.js: CDN -> /vendor -->
+
+ <script src="/vendor/livekit-client.umd.js" defer></script> 
+  
+<!-- تطبيقك -->
+<script src="/app.js" defer></script>
+
 </html>

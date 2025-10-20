@@ -273,9 +273,21 @@ scrub.addEventListener('change',()=>{ if(!started) return; const nt=capLiveEdge(
 document.getElementById('mainPreview').addEventListener('click',()=>{ if(splitMode!==0) return; isMainFull=!isMainFull; root.classList.toggle('main-full',isMainFull); root.classList.toggle('cover-one',isMainFull); });
 
 /* ===== LiveKit: اقتران/نشر ===== */
-const LK = window.livekit || window.Livekit || window.LiveKit || window.LiveKitClient;
-let lkRoom=null;
-let localTracks=[];
+// التقط LiveKit بعد التحميل
+const LK =
+  window.livekit ||
+  window.Livekit ||
+  window.LiveKit ||
+  window.LiveKitClient;
+
+function ensureSDK() {
+  if (!LK || !LK.Room || !LK.createLocalTracks) {
+    console.error('LiveKit UMD not found on window.*', { keys: Object.keys(window) });
+    alert('LiveKit SDK غير محمّل. تحقق من /vendor/livekit-client.umd.js');
+    return false;
+  }
+  return true;
+}
 
 function setLKStatus(txt){ lkStatus.textContent = txt; }
 function haveSDK(){ return !!(LK && LK.Room && LK.createLocalTracks); }

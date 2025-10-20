@@ -29,13 +29,10 @@
   }
 
   (async ()=>{
-    // أمهل وسوم defer قليلًا
     for (let i=0;i<12;i++){
       const found = pickGlobal(); if (found){ console.log('[LK-LOADER] found global =', found.name); return; }
       await new Promise(r=>setTimeout(r,120));
     }
-
-    // أعد محاولة المحلي يدويًا (حتى إن فشل defer بصمت)
     try{
       console.log('[LK-LOADER] injecting local', LOCAL);
       await inject(LOCAL);
@@ -44,8 +41,6 @@
         await new Promise(r=>setTimeout(r,100));
       }
     }catch(e){ console.warn('[LK-LOADER] local inject failed', e); }
-
-    // سقوط إلى CDN
     try{
       console.log('[LK-LOADER] injecting CDN', CDN);
       await inject(CDN);
@@ -54,9 +49,8 @@
         await new Promise(r=>setTimeout(r,100));
       }
     }catch(e){ console.warn('[LK-LOADER] cdn inject failed', e); }
-
     if (!pickGlobal()){
-      alert('LiveKit SDK غير مُحمّل — تأكد من /vendor/livekit-client.umd.js أو السماح بالـCDN.');
+      alert('LiveKit SDK غير مُحمَّل — تأكد من /vendor/livekit-client.umd.js أو السماح بالـCDN.');
     }
   })();
 })();
@@ -160,7 +154,7 @@ const timeLabel=document.getElementById('timeLabel');
 const streamPanel=document.getElementById('streamPanel');
 const streamList=document.getElementById('streamList');
 
-/* عناصر LiveKit (أسفل) */
+/* عناصر LiveKit (الرصيف السفلي) */
 const roomSel = document.getElementById('roomSel');
 const displayName = document.getElementById('displayName');
 const pairBtn = document.getElementById('pairBtn');
@@ -176,6 +170,57 @@ const playersCache=new Map();
 const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
 function mountTo(container, node){container.appendChild(node);}
 
+/* ====== دعم المُعاينة المحلية ====== */
+let lkRoom=null;
+let localTracks=[];   // مسارات LiveKit
+let localVideoTrack=null; // LK.LocalVideoTrack
+let localAudioTrack=null; // LK.LocalAudioTrack
+
+function ensureLocalTile(){
+  if(!localVideoTrack) return;
+
+  // عنصر الفيديو المحلي
+  let ent = playersCache.get('local');
+  if(!ent){
+    const wrap=document.createElement('div'); wrap.className='layer'; wrap.style.cssText='position:absolute;inset:0;opacity:0';
+    const v=document.createElement('video');
+    v.playsInline=true; v.muted=true; v.autoplay=true; v.controls=false;
+    v.style.cssText='width:100%;height:100%;object-fit:contain';
+    wrap.appendChild(v);
+
+    // ربط الـMediaStream
+    const ms = new MediaStream();
+    const raw = localVideoTrack.mediaStreamTrack || localVideoTrack.track || localVideoTrack;
+    if (raw) ms.addTrack(raw);
+    v.srcObject = ms;
+
+    mountTo(camContainer,wrap);
+    ent = {wrap, video:v, ready:true, kind:'local'};
+    playersCache.set('local', ent);
+  }
+
+  // بند في القائمة
+  if(!document.querySelector('.stream-item[data-cam="local"]')){
+    const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam='local';
+    const label = (displayName.value||'LOCAL').toUpperCase();
+    const name=document.createElement('div'); name.className='stream-name'; name.textContent=label;
+    li.appendChild(name);
+    li.addEventListener('click',()=>setActiveCamSmooth('local'));
+    // ضعه في أعلى القائمة
+    streamList.prepend(li);
+  }
+}
+
+function removeLocalTile(){
+  // إزالة من القائمة والـDOM
+  const li = document.querySelector('.stream-item[data-cam="local"]');
+  if(li && li.parentNode) li.parentNode.removeChild(li);
+  const ent = playersCache.get('local');
+  if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);
+  playersCache.delete('local');
+  if(currentCam==='local'){ currentCam='cam2'; markActiveList(); }
+}
+
 /* تهيئة */
 function initMain(){
   const {wrap,video}=createVideoElement(window.sources.main);
@@ -184,6 +229,10 @@ function initMain(){
   mainPlayer=video;
 }
 function getOrCreateCam(id){
+  if(id==='local'){
+    const ent=playersCache.get('local');
+    return ent || null;
+  }
   let ent=playersCache.get(id);
   if(ent) return ent;
   const {wrap,video}=createVideoElement(window.sources[id]);
@@ -195,6 +244,15 @@ function getOrCreateCam(id){
 }
 function buildStreamList(){
   streamList.innerHTML='';
+  // إن وُجدت محليًا، أضفها أولاً
+  if(localVideoTrack){
+    const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam='local';
+    const label = (displayName.value||'LOCAL').toUpperCase();
+    const name=document.createElement('div'); name.className='stream-name'; name.textContent=label;
+    li.appendChild(name);
+    li.addEventListener('click',()=>setActiveCamSmooth('local'));
+    streamList.appendChild(li);
+  }
   (window.channelMap||[]).filter(ch=>hasUrl(ch.src)).forEach(ch=>{
     const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam=ch.id;
     li.appendChild(Object.assign(document.createElement('div'),{className:'stream-name',textContent:ch.label}));
@@ -208,11 +266,22 @@ function buildStreamList(){
   });
 }
 function markActiveList(){document.querySelectorAll('.stream-item').forEach(el=>{el.classList.toggle('active',el.dataset.cam===currentCam);});}
-function initOnce(){ initMain(); const first=getOrCreateCam(currentCam); first.wrap.style.opacity='1'; activePlayer=first.video; buildStreamList(); markActiveList(); }
+function initOnce(){ initMain(); const first=getOrCreateCam(currentCam); if(first){first.wrap.style.opacity='1'; activePlayer=first.video;} buildStreamList(); markActiveList(); }
 initOnce();
 
 /* تبديل الكاميرا */
 async function setActiveCamSmooth(id){
+  if(id==='local'){
+    if(!localVideoTrack) return;
+    const target=getOrCreateCam('local'); if(!target) return;
+    const v=target.video, w=target.wrap;
+    try{ await v.play(); }catch(_){}
+    w.className='layer fade-in'; w.style.opacity='1';
+    const old = activePlayer, oldWrap = old ? old.parentElement : null;
+    setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; currentCam='local'; markActiveList(); }, 180);
+    return;
+  }
+
   if(!window.sources[id] || id===currentCam) return;
   currentCam=id; markActiveList();
   const target=getOrCreateCam(id);
@@ -243,7 +312,8 @@ async function startPlayback(){
   if(started) return; started=true;
   gatePlay.classList.add('hidden'); globalControls.classList.remove('hidden');
   try{ await mainPlayer.play(); }catch(_){}
-  try{ await activePlayer.play(); }catch(_){}
+  const firstCam = playersCache.get(currentCam);
+  try{ if(firstCam && firstCam.video) await firstCam.video.play(); }catch(_){}
   setTimeout(()=>{ const m=getSeekableRange(mainPlayer); if(m){ mainPlayer.currentTime=Math.max(m.start,m.end-0.80);} },300);
   startTimeTicker();
 }
@@ -270,20 +340,18 @@ startBtn.addEventListener('click',startPlayback);
 btnSplit.addEventListener('click',()=>{splitMode=(splitMode+1)%4;root.classList.toggle('split',splitMode!==0);root.classList.remove('mode1','mode2','mode3');if(splitMode===1)root.classList.add('mode1');if(splitMode===2)root.classList.add('mode2');if(splitMode===3)root.classList.add('mode3');});
 btnFill.addEventListener('click',()=>{if(splitMode===0){isMainFull=!isMainFull;root.classList.toggle('main-full',isMainFull);root.classList.toggle('cover-one',isMainFull);}else{splitMode=(splitMode===2)?3:2;root.classList.remove('mode1','mode2','mode3');root.classList.add(splitMode===2?'mode2':'mode3');root.classList.add('split');}});
 btnSound.addEventListener('click',()=>{if(!started)return;mainPlayer.muted=!mainPlayer.muted;if(!mainPlayer.muted)mainPlayer.play().catch(()=>{});});
-const gSeek=(ofs)=>{if(!started)return;const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs);mainPlayer.currentTime=t;if(activePlayer)activePlayer.currentTime=snapIntoBuffer(activePlayer,t);};
+const gSeek=(ofs)=>{if(!started)return;const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs);mainPlayer.currentTime=t;const act=playersCache.get(currentCam);if(act&&act.video)act.video.currentTime=snapIntoBuffer(act.video,t);};
 gBack.addEventListener('click',()=>gSeek(-5));
 gFwd .addEventListener('click',()=>gSeek( 5));
 gPlay.addEventListener('click',async()=>{if(!started)return;if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}}else mainPlayer.pause();});
 scrub.addEventListener('input',()=>{if(started)isScrubbing=true;});
-scrub.addEventListener('change',()=>{if(!started)return;const nt=capLiveEdge(mainPlayer,parseFloat(scrub.value)||0);mainPlayer.currentTime=nt;if(activePlayer)activePlayer.currentTime=snapIntoBuffer(activePlayer,nt);isScrubbing=false;});
+scrub.addEventListener('change',()=>{if(!started)return;const nt=capLiveEdge(mainPlayer,parseFloat(scrub.value)||0);mainPlayer.currentTime=nt;const act=playersCache.get(currentCam);if(act&&act.video)act.video.currentTime=snapIntoBuffer(act.video,nt);isScrubbing=false;});
 document.getElementById('mainPreview').addEventListener('click',()=>{if(splitMode!==0)return;isMainFull=!isMainFull;root.classList.toggle('main-full',isMainFull);root.classList.toggle('cover-one',isMainFull);});
 
 /* ===== LiveKit ===== */
 function LKGlobal(){
   return (window.livekit||window.Livekit||window.LiveKit||window.LiveKitClient||window.LivekitClient||window.livekitClient);
 }
-let lkRoom=null;
-let localTracks=[];
 
 function setLKStatus(txt){ lkStatus.textContent = txt; }
 function haveSDK(){ const LK = LKGlobal(); return !!(LK && LK.Room && LK.createLocalTracks); }
@@ -312,12 +380,21 @@ pairBtn.addEventListener('click', async ()=>{
 
     try{ localTracks.forEach(t=>t.stop()); }catch(_){}
     localTracks=[];
+    localVideoTrack=null; localAudioTrack=null;
 
     const tracks = await LK.createLocalTracks({
       audio:true,
       video:{ facingMode:'user', resolution: LK.VideoPresets.h720 }
     });
     localTracks = tracks;
+    for (const t of tracks){
+      if(t.kind==='video') localVideoTrack=t;
+      if(t.kind==='audio') localAudioTrack=t;
+    }
+
+    ensureLocalTile();    // ← أنشئ عنصر المُعاينة المحلي في الواجهة
+    buildStreamList();    // أعد بناء القائمة لتتضمن LOCAL في الأعلى
+    markActiveList();
 
     setLKStatus('جاهز للنشر');
     publishBtn.disabled=false;
@@ -364,7 +441,8 @@ stopBtn.addEventListener('click',()=>{
   try{
     if(lkRoom){ lkRoom.disconnect(); lkRoom=null; }
     try{ localTracks.forEach(t=>t.stop()); }catch(_){}
-    localTracks=[];
+    localTracks=[]; localVideoTrack=null; localAudioTrack=null;
+    removeLocalTile();
     setLKStatus('LiveKit: غير متصل');
     publishBtn.disabled=true;
     stopBtn.disabled=true;

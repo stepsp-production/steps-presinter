@@ -321,6 +321,86 @@ pairBtn.addEventListener('click', async () => {
 });
 
 publishBtn.addEventListener('click', async () => {
-  const LK = getLK();
-  if(!LK){ alert('LiveKit SDK غير مُحمَّل — تأassistant മലanalysis
-::contentReference[oaicite:0]{index=0}
+  if (!ensureSDK()) return;
+
+  try {
+    publishBtn.disabled = true;
+
+    const roomName = roomSel.value || 'room-1';
+    const identity = (displayName.value || '').trim() || ('user-' + Math.random().toString(36).slice(2, 8));
+
+    setLKStatus('جلب توكن…');
+    const tokenRes = await fetch(
+      `https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`,
+      { credentials: 'omit' }
+    );
+    if (!tokenRes.ok) {
+      publishBtn.disabled = false;
+      alert('فشل طلب التوكن (تحقق من السيرفر/الراوت).');
+      setLKStatus('فشل جلب التوكن');
+      return;
+    }
+    const data = await tokenRes.json();
+    const lkUrl  = data?.url;
+    const lkTok  = data?.token;
+
+    if (!lkUrl || !lkTok) {
+      publishBtn.disabled = false;
+      alert('استجابة التوكن غير صحيحة. يجب أن تكون: { url, token }');
+      setLKStatus('توكن غير صالح');
+      return;
+    }
+
+    setLKStatus('الاتصال بالغرفة…');
+    lkRoom = new LK.Room({ adaptiveStream: true, dynacast: true });
+
+    lkRoom.on(LK.RoomEvent.Disconnected, () => setLKStatus('LiveKit: غير متصل'));
+    await lkRoom.connect(lkUrl, lkTok);
+
+    // نشر المسارات
+    setLKStatus('نشر المسارات…');
+    for (const tr of localTracks) {
+      await lkRoom.localParticipant.publishTrack(tr);
+    }
+    setLKStatus(`LiveKit: متصل (${roomName})`);
+  } catch (err) {
+    console.error('Publish error:', err);
+    alert('تعذر نشر الصوت/الفيديو — تأكد من التوكن والاتصال بالشبكة.');
+    setLKStatus('فشل النشر');
+    publishBtn.disabled = false;
+  }
+});
+
+stopBtn.addEventListener('click', () => {
+  try {
+    if (lkRoom) { lkRoom.disconnect(); lkRoom = null; }
+    localTracks.forEach((t) => { try { t.stop(); } catch (_) {} });
+    localTracks = [];
+    setLKStatus('LiveKit: غير متصل');
+    publishBtn.disabled = true;
+    stopBtn.disabled    = true;
+  } catch (e) {}
+});
+
+/* ===================== Debug اختياري لـ HLS ===================== */
+(function addHlsDebug() {
+  function wireDebug(video) {
+    const h = video && video.__hls; if (!h) return;
+    h.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
+      console.log('[HLS] MANIFEST_PARSED levels=',
+        (data && data.levels || []).map((l) => ({ h: l.height, codecs: l.codecs }))
+      );
+    });
+    h.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+      console.log('[HLS] LEVEL_LOADED targetduration=', data?.details?.targetduration,
+                  'frags=', data?.details?.fragments?.length);
+    });
+    h.on(Hls.Events.ERROR, (_, err) => { console.error('[HLS] ERROR', err?.type, err?.details, err); });
+  }
+  const mo = new MutationObserver(() => {
+    document.querySelectorAll('video').forEach((v) => {
+      if (!v.__debugWired && v.__hls) { v.__debugWired = true; wireDebug(v); }
+    });
+  });
+  mo.observe(document.body, { childList: true, subtree: true });
+})();

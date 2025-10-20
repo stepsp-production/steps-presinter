@@ -170,16 +170,17 @@ const playersCache=new Map();
 const fmt=(t)=>{t=Math.max(0,Math.floor(t||0));const m=String(Math.floor(t/60)).padStart(2,'0');const s=String(t%60).padStart(2,'0');return `${m}:${s}`;};
 function mountTo(container, node){container.appendChild(node);}
 
-/* ====== دعم المُعاينة المحلية ====== */
+/* ====== دعم المُعاينة المحلية + صوت المايك عند اختيار LOCAL ====== */
 let lkRoom=null;
-let localTracks=[];   // مسارات LiveKit
-let localVideoTrack=null; // LK.LocalVideoTrack
-let localAudioTrack=null; // LK.LocalAudioTrack
+let localTracks=[];        // مسارات LiveKit
+let localVideoTrack=null;  // LK.LocalVideoTrack
+let localAudioTrack=null;  // LK.LocalAudioTrack
+let localAudioEl=null;     // <audio> لمراقبة صوت المايك عند اختيار LOCAL
 
 function ensureLocalTile(){
   if(!localVideoTrack) return;
 
-  // عنصر الفيديو المحلي
+  // عنصر الفيديو المحلي (مُعطى بدون صوت – الصوت يُدار عبر localAudioEl)
   let ent = playersCache.get('local');
   if(!ent){
     const wrap=document.createElement('div'); wrap.className='layer'; wrap.style.cssText='position:absolute;inset:0;opacity:0';
@@ -188,7 +189,6 @@ function ensureLocalTile(){
     v.style.cssText='width:100%;height:100%;object-fit:contain';
     wrap.appendChild(v);
 
-    // ربط الـMediaStream
     const ms = new MediaStream();
     const raw = localVideoTrack.mediaStreamTrack || localVideoTrack.track || localVideoTrack;
     if (raw) ms.addTrack(raw);
@@ -206,19 +206,53 @@ function ensureLocalTile(){
     const name=document.createElement('div'); name.className='stream-name'; name.textContent=label;
     li.appendChild(name);
     li.addEventListener('click',()=>setActiveCamSmooth('local'));
-    // ضعه في أعلى القائمة
     streamList.prepend(li);
   }
 }
 
 function removeLocalTile(){
-  // إزالة من القائمة والـDOM
   const li = document.querySelector('.stream-item[data-cam="local"]');
   if(li && li.parentNode) li.parentNode.removeChild(li);
   const ent = playersCache.get('local');
   if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);
   playersCache.delete('local');
-  if(currentCam==='local'){ currentCam='cam2'; markActiveList(); }
+  stopLocalAudioMonitor(); // نظّف صوت المراقبة أيضًا
+}
+
+/* إنشاء/إيقاف صوت المراقبة للمايك عند اختيار LOCAL فقط */
+function startLocalAudioMonitor(){
+  if(!localAudioTrack) return;
+  if(localAudioEl) return; // موجود بالفعل
+
+  const rawA = localAudioTrack.mediaStreamTrack || localAudioTrack.track || localAudioTrack;
+  if(!rawA) return;
+
+  localAudioEl = document.createElement('audio');
+  localAudioEl.autoplay = true;
+  localAudioEl.controls = false;
+  localAudioEl.muted = false;       // نُريد سماعه
+  localAudioEl.volume = 1.0;
+  localAudioEl.style.display = 'none';
+
+  const aStream = new MediaStream();
+  aStream.addTrack(rawA);
+  localAudioEl.srcObject = aStream;
+
+  document.body.appendChild(localAudioEl);
+  localAudioEl.play().catch(()=>{ /* بعض المتصفحات تحتاج gesture - النقر على LOCAL هو gesture */ });
+}
+
+function stopLocalAudioMonitor(){
+  if(localAudioEl){
+    try{ localAudioEl.pause(); }catch(_){}
+    try{
+      const ms = localAudioEl.srcObject;
+      if(ms && ms.getTracks) ms.getTracks().forEach(t=>t.stop?.());
+    }catch(_){}
+    try{ localAudioEl.srcObject=null; }catch(_){}
+    if(localAudioEl.parentNode) localAudioEl.parentNode.removeChild(localAudioEl);
+    localAudioEl=null;
+  }
 }
 
 /* تهيئة */
@@ -244,7 +278,6 @@ function getOrCreateCam(id){
 }
 function buildStreamList(){
   streamList.innerHTML='';
-  // إن وُجدت محليًا، أضفها أولاً
   if(localVideoTrack){
     const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam='local';
     const label = (displayName.value||'LOCAL').toUpperCase();
@@ -278,9 +311,16 @@ async function setActiveCamSmooth(id){
     try{ await v.play(); }catch(_){}
     w.className='layer fade-in'; w.style.opacity='1';
     const old = activePlayer, oldWrap = old ? old.parentElement : null;
-    setTimeout(()=>{ if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } activePlayer=v; currentCam='local'; markActiveList(); }, 180);
+    setTimeout(()=>{ 
+      if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } 
+      activePlayer=v; currentCam='local'; markActiveList(); 
+      startLocalAudioMonitor();          // ⇐ شغِّل صوت المايك عند اختيار LOCAL
+    }, 180);
     return;
   }
+
+  // الانتقال إلى أي كاميرا أخرى => أوقف صوت LOCAL
+  stopLocalAudioMonitor();
 
   if(!window.sources[id] || id===currentCam) return;
   currentCam=id; markActiveList();
@@ -392,8 +432,8 @@ pairBtn.addEventListener('click', async ()=>{
       if(t.kind==='audio') localAudioTrack=t;
     }
 
-    ensureLocalTile();    // ← أنشئ عنصر المُعاينة المحلي في الواجهة
-    buildStreamList();    // أعد بناء القائمة لتتضمن LOCAL في الأعلى
+    ensureLocalTile();    // أنشئ معاينة LOCAL
+    buildStreamList();    // أعد بناء القائمة لتتضمن LOCAL
     markActiveList();
 
     setLKStatus('جاهز للنشر');
@@ -442,6 +482,7 @@ stopBtn.addEventListener('click',()=>{
     if(lkRoom){ lkRoom.disconnect(); lkRoom=null; }
     try{ localTracks.forEach(t=>t.stop()); }catch(_){}
     localTracks=[]; localVideoTrack=null; localAudioTrack=null;
+    stopLocalAudioMonitor();
     removeLocalTile();
     setLKStatus('LiveKit: غير متصل');
     publishBtn.disabled=true;

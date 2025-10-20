@@ -280,15 +280,6 @@ const LK =
   window.LiveKit ||
   window.LiveKitClient;
 
-function ensureSDK() {
-  if (!LK || !LK.Room || !LK.createLocalTracks) {
-    console.error('LiveKit UMD not found on window.*', { keys: Object.keys(window) });
-    alert('LiveKit SDK غير محمّل. تحقق من /vendor/livekit-client.umd.js');
-    return false;
-  }
-  return true;
-}
-
 function setLKStatus(txt){ lkStatus.textContent = txt; }
 function haveSDK(){ return !!(LK && LK.Room && LK.createLocalTracks); }
 function showSDKAlert(){ alert('LiveKit SDK غير مُحمَّل — تأكد من vendor/livekit-client.umd.js أو السماح بالـCDN.'); }

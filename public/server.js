@@ -1,71 +1,85 @@
-// server.js  — خادم توكن LiveKit بدون @livekit/server-sdk
-// يعمل مع Node 20+ و Type=module
-
+// server.js — Token server for LiveKit Cloud (Node 20.x)
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 
 const app = express();
 
-// متغيرات البيئة المطلوبة على Render:
-// LIVEKIT_URL=wss://<your-instance>.livekit.cloud
-// LIVEKIT_API_KEY=<api key>
-// LIVEKIT_API_SECRET=<api secret>
-// (اختياري) CORS_ORIGIN=https://your-frontend.domain
-const LIVEKIT_URL     = process.env.LIVEKIT_URL;
-const API_KEY         = process.env.LIVEKIT_API_KEY;
-const API_SECRET      = process.env.LIVEKIT_API_SECRET;
-const CORS_ORIGIN     = process.env.CORS_ORIGIN || '*';
-const PORT            = process.env.PORT || 3000;
+// ====== Env ======
+const {
+  LIVEKIT_URL,         // wss://presinter-stream-gjthpz2z.livekit.cloud
+  LIVEKIT_API_KEY,     // من لوحة LiveKit
+  LIVEKIT_API_SECRET,  // من لوحة LiveKit
+  PORT = 3000,
+  DEBUG_TOKEN = '',
+} = process.env;
 
-if (!LIVEKIT_URL || !API_KEY || !API_SECRET) {
-  console.error('❌ Missing LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET env vars');
-}
+// ====== CORS (اسمح للجميع مؤقتًا) ======
+// هذا يزيل أي مشاكل preflight من iOS/Safari و تغيّر الدومين (presinter-cam.pages.dev)
+app.use(cors({ origin: true, credentials: false }));
+app.options('*', cors()); // ردّ على كل preflight
 
-app.use(cors({ origin: CORS_ORIGIN, credentials: false }));
-app.get('/', (_, res) => {
-  res.type('text/plain').send('steps-presinter: OK');
+// لا كاش على الـAPI
+app.use((_, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); });
+
+// صحة
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, LIVEKIT_URL: !!LIVEKIT_URL });
 });
 
-// /token?room=room-1&identity=alice
-app.get('/token', (req, res) => {
+// GET /token?room=room-1&identity=steps&name=Steps
+app.get('/token', async (req, res) => {
   try {
-    const room = (req.query.room || 'room-1').toString();
-    const identity = (req.query.identity || 'user-' + Math.random().toString(36).slice(2, 8)).toString();
+    let { room, identity, name } = req.query;
 
-    // صلاحيات/منح LiveKit ضمن claim "video"
-    const grants = {
-      video: {
-        room,                 // اسم الغرفة
-        roomJoin: true,       // السماح بالانضمام
-        canPublish: true,     // نشر الصوت/الفيديو
-        canPublishData: true, // نشر بيانات
-        canSubscribe: true    // الاشتراك بالبث
-      }
-    };
+    if (typeof room !== 'string' || !room.trim()) {
+      return res.status(400).json({ error: 'room parameter is required' });
+    }
+    room = room.trim();
 
-    // مطالِب الـJWT حسب LiveKit:
-    // iss: api key
-    // sub: identity (من سيستخدم التوكن)
-    // nbf/exp: نافذة زمنية
+    if (typeof identity !== 'string' || !identity.trim()) {
+      identity = 'user-' + Math.random().toString(36).slice(2, 10);
+    } else identity = identity.trim();
+
+    if (typeof name !== 'string' || !name.trim()) name = identity;
+    else name = name.trim();
+
     const now = Math.floor(Date.now() / 1000);
+    const exp = now + 60 * 10; // 10 دقائق
+
+    // Payload وفق مخطط LiveKit
     const payload = {
-      iss: API_KEY,
+      iss: LIVEKIT_API_KEY,
       sub: identity,
-      nbf: now - 10,
-      exp: now + 60 * 60, // صلاحية 60 دقيقة
-      ...grants
+      name,
+      iat: now,
+      exp,
+      metadata: JSON.stringify({ displayName: name }),
+      video: {
+        roomJoin: true,
+        room,
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+      },
     };
 
-    const token = jwt.sign(payload, API_SECRET, { algorithm: 'HS256' });
+    if (DEBUG_TOKEN) {
+      console.log('[TOKEN] origin=%s room=%s identity=%s exp=%s',
+        req.headers.origin, room, identity, exp);
+    }
 
-    res.json({ url: LIVEKIT_URL, token });
-  } catch (e) {
-    console.error('token error:', e);
-    res.status(500).json({ error: 'token_generation_failed' });
+    const token = jwt.sign(payload, LIVEKIT_API_SECRET, { algorithm: 'HS256' });
+
+    // الرد كما يتوقع الكلاينت
+    return res.json({ url: LIVEKIT_URL, token });
+  } catch (err) {
+    console.error('[TOKEN] error:', err);
+    return res.status(500).json({ error: 'failed to generate token' });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ steps-presinter listening on :${PORT}`);
+// تشغيل
+app.listen(Number(PORT), () => {
+  console.log(`[token-server] running on :${PORT}`);
 });

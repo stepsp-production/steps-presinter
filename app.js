@@ -181,6 +181,26 @@ let localAudioEl=null;     // <audio> لمراقبة صوت المايك عند 
 const remoteAudioEls = new Map();    // participantSid -> <audio>
 function remoteKey(participant){ return `lk:${participant?.sid || 'unknown'}`; }
 
+/* أدوات ديكود JWT بسيطة (تشخيص فقط) */
+function b64urlToUtf8(str){
+  try{
+    const pad = '='.repeat((4 - (str.length % 4)) % 4);
+    const b64 = (str + pad).replace(/-/g,'+').replace(/_/g,'/');
+    const binStr = atob(b64);
+    const bytes = Uint8Array.from(binStr, c => c.charCodeAt(0));
+    const decoder = new TextDecoder();
+    return decoder.decode(bytes);
+  }catch(_){ return null; }
+}
+function decodeJWT(t){
+  try{
+    const parts = String(t||'').split('.');
+    if(parts.length < 2) return null;
+    const payload = b64urlToUtf8(parts[1]);
+    return payload ? JSON.parse(payload) : null;
+  }catch(_){ return null; }
+}
+
 /* إنشاء عنصر في القائمة */
 function addListItem(id,label){
   if(document.querySelector(`.stream-item[data-cam="${id}"]`)) return;
@@ -248,7 +268,7 @@ function detachRemoteAudio(participant){
 function ensureLocalTile(){
   if(!localVideoTrack) return;
 
-  // عنصر الفيديو المحلي (مُعطى بدون صوت – الصوت يُدار عبر localAudioEl)
+  // عنصر الفيديو المحلي (بدون صوت — الصوت يُدار عبر localAudioEl)
   let ent = playersCache.get('local');
   if(!ent){
     const wrap=document.createElement('div'); wrap.className='layer'; wrap.style.cssText='position:absolute;inset:0;opacity:0';
@@ -290,7 +310,7 @@ function removeLocalTile(){
 /* إنشاء/إيقاف صوت المراقبة للمايك عند اختيار LOCAL فقط */
 function startLocalAudioMonitor(){
   if(!localAudioTrack) return;
-  if(localAudioEl) return; // موجود بالفعل
+  if(localAudioEl) return;
 
   const rawA = localAudioTrack.mediaStreamTrack || localAudioTrack.track || localAudioTrack;
   if(!rawA) return;
@@ -298,7 +318,7 @@ function startLocalAudioMonitor(){
   localAudioEl = document.createElement('audio');
   localAudioEl.autoplay = true;
   localAudioEl.controls = false;
-  localAudioEl.muted = false;       // نُريد سماعه
+  localAudioEl.muted = false;
   localAudioEl.volume = 1.0;
   localAudioEl.style.display = 'none';
 
@@ -307,7 +327,7 @@ function startLocalAudioMonitor(){
   localAudioEl.srcObject = aStream;
 
   document.body.appendChild(localAudioEl);
-  localAudioEl.play().catch(()=>{ /* بعض المتصفحات تحتاج gesture - النقر على LOCAL هو gesture */ });
+  localAudioEl.play().catch(()=>{});
 }
 
 function stopLocalAudioMonitor(){
@@ -361,7 +381,7 @@ function buildStreamList(){
     streamList.appendChild(li);
   });
 
-  // ==== NEW: أعِد إدراج أي مشاركين بعيدين موجودين مسبقًا ====
+  // إعادة إدراج المشاركين البعيدين الموجودين مسبقًا
   playersCache.forEach((ent, key)=>{
     if(key.startsWith('lk:')){
       const label = `LK:${(ent.identity || ent.sid || 'GUEST').toString().toUpperCase()}`;
@@ -391,12 +411,11 @@ async function setActiveCamSmooth(id){
     setTimeout(()=>{
       if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; }
       activePlayer=v; currentCam='local'; markActiveList();
-      startLocalAudioMonitor();          // ⇐ شغِّل صوت المايك عند اختيار LOCAL
+      startLocalAudioMonitor();
     }, 180);
     return;
   }
 
-  // ==== NEW: مسارات LiveKit (المشاركون البعيدون) ====
   if(id && id.startsWith('lk:')){
     stopLocalAudioMonitor(); // إن انتقلنا بعيدًا عن LOCAL
     const target = playersCache.get(id);
@@ -412,9 +431,8 @@ async function setActiveCamSmooth(id){
     return;
   }
 
-  // الانتقال إلى أي كاميرا HLS أخرى => أوقف صوت LOCAL
+  // HLS
   stopLocalAudioMonitor();
-
   if(!window.sources[id] || id===currentCam) return;
   currentCam=id; markActiveList();
   const target=getOrCreateCam(id);
@@ -503,37 +521,31 @@ async function ensureDevicesPermission(){
   }catch(e){ throw new Error('تعذر الوصول للكاميرا/المايك — تحقق من الأذونات ثم أعد المحاولة.');}
 }
 
-/* ==== NEW: ربط أحداث الغرفة للاشتراك في المسارات البعيدة ==== */
+/* ربط أحداث الغرفة للاشتراك في المسارات البعيدة */
 function wireRoomEvents(room, LK){
-  // عندما يتم الاشتراك في مسار بعيد
   room.on(LK.RoomEvent.TrackSubscribed, (track, publication, participant)=>{
     if(track.kind==='video'){ addRemoteVideoTile(participant, track); }
     if(track.kind==='audio'){ attachRemoteAudio(participant, track); }
   });
-
-  // عند إلغاء الاشتراك أو توقف المسار
   room.on(LK.RoomEvent.TrackUnsubscribed, (track, publication, participant)=>{
     if(track.kind==='video'){ removeRemoteVideoTileByParticipant(participant); }
     if(track.kind==='audio'){ detachRemoteAudio(participant); }
   });
-
-  // عند مغادرة مشارك
   room.on(LK.RoomEvent.ParticipantDisconnected, (participant)=>{
     removeRemoteVideoTileByParticipant(participant);
     detachRemoteAudio(participant);
   });
-
-  // عند الانفصال العام من الغرفة — نظّف كل شيء
+  room.on(LK.RoomEvent.ConnectionStateChanged, (state)=>{
+    console.log('[LiveKit] state =', state);
+  });
   room.on(LK.RoomEvent.Disconnected, ()=>{
     setLKStatus('LiveKit: غير متصل');
-    // إزالة كل عناصر lk: من الواجهة
     [...playersCache.keys()].filter(k=>k.startsWith('lk:')).forEach(k=>{
       const ent = playersCache.get(k);
       if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);
       playersCache.delete(k);
       removeListItem(k);
     });
-    // إزالة الأصوات
     remoteAudioEls.forEach((el)=>{ try{ el.pause(); }catch(_){}
       try{ el.remove(); }catch(_){}
     });
@@ -563,8 +575,8 @@ pairBtn.addEventListener('click', async ()=>{
       if(t.kind==='audio') localAudioTrack=t;
     }
 
-    ensureLocalTile();    // أنشئ معاينة LOCAL
-    buildStreamList();    // أعد بناء القائمة لتتضمن LOCAL
+    ensureLocalTile();
+    buildStreamList();
     markActiveList();
 
     setLKStatus('جاهز للنشر');
@@ -577,34 +589,90 @@ pairBtn.addEventListener('click', async ()=>{
   }
 });
 
+/* ====== نشر مع تشخيص تفصيلي ====== */
 publishBtn.addEventListener('click', async ()=>{
   if(!haveSDK()){ showSDKAlert(); return; }
+  const LK = LKGlobal();
+  const roomName = roomSel.value || 'room-1';
+  const identity=(displayName.value||'').trim() || ('user-'+Math.random().toString(36).slice(2,8));
+
   try{
-    const LK = LKGlobal();
     publishBtn.disabled=true;
-    const roomName = roomSel.value || 'room-1';
-    const identity=(displayName.value||'').trim() || ('user-'+Math.random().toString(36).slice(2,8));
 
     setLKStatus('جلب توكن…');
-    const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`,{mode:'cors'});
-    if(!res.ok){ publishBtn.disabled=false; alert('فشل طلب التوكن (تحقق من السيرفر).'); setLKStatus('فشل جلب التوكن'); return; }
-    const data=await res.json();
+    let res, text;
+    try{
+      res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}&name=${encodeURIComponent(identity)}`,{mode:'cors'});
+    }catch(fetchErr){
+      alert('فشل طلب التوكن (fetch/network): ' + (fetchErr?.message||fetchErr));
+      publishBtn.disabled=false; setLKStatus('فشل جلب التوكن'); return;
+    }
+
+    text = await res.text();
+    if(!res.ok){
+      alert(`فشل طلب التوكن: status ${res.status}\nBody: ${text.slice(0,300)}`);
+      publishBtn.disabled=false; setLKStatus('فشل جلب التوكن'); return;
+    }
+
+    let data;
+    try{ data = JSON.parse(text); }
+    catch(parseErr){
+      alert('JSON token غير صالح: ' + text.slice(0,300));
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
+
     const url=data.url, token=data.token;
-    if(!url || !token){ publishBtn.disabled=false; alert('استجابة توكن غير صحيحة {url, token}.'); setLKStatus('توكن غير صالح'); return; }
+    if(typeof url!=='string' || !/^wss:\/\//i.test(url)){
+      alert('قيمة url غير صحيحة (يجب أن تبدأ بـ wss://): ' + String(url));
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
+    if(typeof token!=='string' || token.split('.').length<2){
+      alert('قيمة token غير صحيحة: ' + String(token).slice(0,60));
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
 
+    // تشخيص الـJWT
+    const payload = decodeJWT(token) || {};
+    const now = Math.floor(Date.now()/1000);
+    if(payload.exp && now >= payload.exp){
+      alert(`Token منتهي الصلاحية (exp=${payload.exp}, now=${now}). حدّث السيرفر لزيادة المدة.`);
+      publishBtn.disabled=false; setLKStatus('توكن منتهي'); return;
+    }
+    if(!payload.video || payload.video.roomJoin!==true){
+      alert('Token grants لا تسمح roomJoin=true. راجع إنشاء الـJWT في السيرفر.');
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
+    if(payload.video.room && payload.video.room !== roomName){
+      alert(`Token مخصص لغرفة مختلفة (${payload.video.room}) ≠ (${roomName}).`);
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
+
+    // اتصال
     setLKStatus('الاتصال بالغرفة…');
-    // ==== NEW: autoSubscribe=true كي نستقبل مسارات الآخرين تلقائيًا ====
     lkRoom=new LK.Room({adaptiveStream:true,dynacast:true,autoSubscribe:true});
-    wireRoomEvents(lkRoom, LK); // ربط الأحداث
+    wireRoomEvents(lkRoom, LK);
     lkRoom.on(LK.RoomEvent.Disconnected,()=>setLKStatus('LiveKit: غير متصل'));
-    await lkRoom.connect(url,token);
 
+    try{
+      await lkRoom.connect(url,token);
+    }catch(connectErr){
+      console.error('connect error:', connectErr);
+      alert('LiveKit connect failed: ' + (connectErr?.message || String(connectErr)));
+      publishBtn.disabled=false; setLKStatus('فشل الاتصال'); return;
+    }
+
+    // نشر المسارات
     setLKStatus('نشر المسارات…');
-    for(const tr of localTracks){ await lkRoom.localParticipant.publishTrack(tr); }
-    setLKStatus(`LiveKit: متصل (${roomName})`);
+    try{
+      for(const tr of localTracks){ await lkRoom.localParticipant.publishTrack(tr); }
+    }catch(pubErr){
+      console.error('publishTrack error:', pubErr);
+      alert('تعذر نشر الصوت/الفيديو: ' + (pubErr?.message || String(pubErr)));
+      publishBtn.disabled=false; setLKStatus('فشل النشر'); return;
+    }
 
-    // ==== NEW: لو دخلنا بعد آخرين وكان لدينا اشتراك تلقائي، سيصل TrackSubscribed.
-    // ومع ذلك، إن كانت هناك منشورات جاهزة ولم تُدفع أحداثها بعد، نستدعي تحققًا سريعًا.
+    setLKStatus(`LiveKit: متصل (${roomName})`);
+    // استكشاف أي مشارك موجود مسبقًا
     lkRoom.participants.forEach((p)=>{
       p.trackPublications?.forEach((pub)=>{
         if(pub.isSubscribed && pub.track){
@@ -615,8 +683,8 @@ publishBtn.addEventListener('click', async ()=>{
     });
 
   }catch(err){
-    console.error('Publish error:',err);
-    alert('تعذر نشر الصوت/الفيديو — تأكد من الشبكة والتوكن.');
+    console.error('Publish error (wrapper):',err);
+    alert('تعذر نشر الصوت/الفيديو — تفاصيل: ' + (err?.message || String(err)));
     setLKStatus('فشل النشر');
     publishBtn.disabled=false;
   }
@@ -630,7 +698,6 @@ stopBtn.addEventListener('click',()=>{
     stopLocalAudioMonitor();
     removeLocalTile();
 
-    // ==== NEW: نظافة إضافية للمشتركين البعيدين عند الإيقاف اليدوي ====
     [...playersCache.keys()].filter(k=>k.startsWith('lk:')).forEach(k=>{
       const ent = playersCache.get(k);
       if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);

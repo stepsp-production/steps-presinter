@@ -488,5 +488,136 @@ function startTimeTicker(){
 /* أزرار */
 startBtn.addEventListener('click',startPlayback);
 btnSplit.addEventListener('click',()=>{splitMode=(splitMode+1)%4;root.classList.toggle('split',splitMode!==0);root.classList.remove('mode1','mode2','mode3');if(splitMode===1)root.classList.add('mode1');if(splitMode===2)root.classList.add('mode2');if(splitMode===3)root.classList.add('mode3');});
-btnFill.addEventListener('click',()=>{if(splitMode===0){isMainFull=!isMainFull;root.classList.toggle('main-full',isMainFull);root.classList.toggle('cover-one',isMainFull);}else{splitMode=(splitMode===2)?3:2;root.classList.remove('analysis')
-::contentReference[oaicite:0]{index=0}
+btnFill.addEventListener('click',()=>{if(splitMode===0){isMainFull=!isMainFull;root.classList.toggle('main-full',isMainFull);root.classList.toggle('cover-one',isMainFull);}else{splitMode=(splitMode===2)?3:2;root.classList.remove('mode1','mode2','mode3');root.classList.add(splitMode===2?'mode2':'mode3');root.classList.add('split');}});
+btnSound.addEventListener('click',()=>{if(!started)return;mainPlayer.muted=!mainPlayer.muted;if(!mainPlayer.muted)mainPlayer.play().catch(()=>{});});
+const gSeek=(ofs)=>{if(!started)return;const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs);mainPlayer.currentTime=t;const act=playersCache.get(currentCam);if(act&&act.video)act.video.currentTime=snapIntoBuffer(act.video,t);};
+gBack.addEventListener('click',()=>gSeek(-5));
+gFwd .addEventListener('click',()=>gSeek( 5));
+gPlay.addEventListener('click',async()=>{if(!started)return;if(mainPlayer.paused){try{await mainPlayer.play();}catch(e){}}else mainPlayer.pause();});
+scrub.addEventListener('input',()=>{if(started)isScrubbing=true;});
+scrub.addEventListener('change',()=>{if(!started)return;const nt=capLiveEdge(mainPlayer,parseFloat(scrub.value)||0);mainPlayer.currentTime=nt;const act=playersCache.get(currentCam);if(act&&act.video)act.video.currentTime=snapIntoBuffer(act.video,nt);isScrubbing=false;});
+document.getElementById('mainPreview').addEventListener('click',()=>{if(splitMode!==0)return;isMainFull=!isMainFull;root.classList.toggle('main-full',isMainFull);root.classList.toggle('cover-one',isMainFull);});
+
+/* ===== LiveKit ===== */
+function LKGlobal(){
+  return (window.livekit||window.Livekit||window.LiveKit||window.LiveKitClient||window.LivekitClient||window.livekitClient);
+}
+
+function setLKStatus(txt){ lkStatus.textContent = txt; }
+function haveSDK(){ const LK = LKGlobal(); return !!(LK && LK.Room && LK.createLocalTracks); }
+function showSDKAlert(){ alert('LiveKit SDK غير مُحمَّل — تأكد من /vendor/livekit-client.umd.js أو السماح بالـCDN.'); }
+
+async function ensureDevicesPermission(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices)
+    throw new Error('المتصفح لا يدعم MediaDevices.');
+  const devs=await navigator.mediaDevices.enumerateDevices();
+  const hasCam=devs.some(d=>d.kind==='videoinput');
+  const hasMic=devs.some(d=>d.kind==='audioinput');
+  if(!hasCam && !hasMic) throw new Error('لم يتم العثور على كاميرا أو مايك في هذا الجهاز.');
+  try{
+    const gum=await navigator.mediaDevices.getUserMedia({video:hasCam?{facingMode:'user'}:false,audio:!!hasMic});
+    gum.getTracks().forEach(t=>t.stop());
+  }catch(e){ throw new Error('تعذر الوصول للكاميرا/المايك — تحقق من الأذونات ثم أعد المحاولة.');}
+}
+
+pairBtn.addEventListener('click', async ()=>{
+  try{
+    if(!haveSDK()){ showSDKAlert(); return; }
+    const LK = LKGlobal();
+
+    setLKStatus('فحص الأجهزة وطلب الأذونات…');
+    await ensureDevicesPermission();
+
+    try{ localTracks.forEach(t=>t.stop()); }catch(_){}
+    localTracks=[];
+    localVideoTrack=null; localAudioTrack=null;
+
+    const tracks = await LK.createLocalTracks({
+      audio:true,
+      video:{ facingMode:'user', resolution: LK.VideoPresets.h720 }
+    });
+    localTracks = tracks;
+    for (const t of tracks){
+      if(t.kind==='video') localVideoTrack=t;
+      if(t.kind==='audio') localAudioTrack=t;
+    }
+
+    ensureLocalTile();    // ← أنشئ عنصر المُعاينة المحلي في الواجهة
+    buildStreamList();    // أعد بناء القائمة لتتضمن LOCAL في الأعلى
+    markActiveList();
+
+    setLKStatus('جاهز للنشر');
+    publishBtn.disabled=false;
+    stopBtn.disabled=false;
+  }catch(err){
+    console.error('Pair error:',err);
+    alert(err?.message || 'تعذر الوصول للكاميرا/المايك — امنح الإذن ثم أعد المحاولة.');
+    setLKStatus('فشل الاقتران');
+  }
+});
+
+publishBtn.addEventListener('click', async ()=>{
+  if(!haveSDK()){ showSDKAlert(); return; }
+  try{
+    const LK = LKGlobal();
+    publishBtn.disabled=true;
+    const roomName = roomSel.value || 'room-1';
+    const identity=(displayName.value||'').trim() || ('user-'+Math.random().toString(36).slice(2,8));
+
+    setLKStatus('جلب توكن…');
+    const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`,{mode:'cors'});
+    if(!res.ok){ publishBtn.disabled=false; alert('فشل طلب التوكن (تحقق من السيرفر).'); setLKStatus('فشل جلب التوكن'); return; }
+    const data=await res.json();
+    const url=data.url, token=data.token;
+    if(!url || !token){ publishBtn.disabled=false; alert('استجابة توكن غير صحيحة {url, token}.'); setLKStatus('توكن غير صالح'); return; }
+
+    setLKStatus('الاتصال بالغرفة…');
+    lkRoom=new LK.Room({adaptiveStream:true,dynacast:true});
+    lkRoom.on(LK.RoomEvent.Disconnected,()=>setLKStatus('LiveKit: غير متصل'));
+    await lkRoom.connect(url,token);
+
+    setLKStatus('نشر المسارات…');
+    for(const tr of localTracks){ await lkRoom.localParticipant.publishTrack(tr); }
+    setLKStatus(`LiveKit: متصل (${roomName})`);
+  }catch(err){
+    console.error('Publish error:',err);
+    alert('تعذر نشر الصوت/الفيديو — تأكد من الشبكة والتوكن.');
+    setLKStatus('فشل النشر');
+    publishBtn.disabled=false;
+  }
+});
+
+stopBtn.addEventListener('click',()=>{
+  try{
+    if(lkRoom){ lkRoom.disconnect(); lkRoom=null; }
+    try{ localTracks.forEach(t=>t.stop()); }catch(_){}
+    localTracks=[]; localVideoTrack=null; localAudioTrack=null;
+    removeLocalTile();
+    setLKStatus('LiveKit: غير متصل');
+    publishBtn.disabled=true;
+    stopBtn.disabled=true;
+  }catch(e){}
+});
+
+/* تغيّرات الأجهزة */
+if(navigator.mediaDevices && navigator.mediaDevices.addEventListener){
+  navigator.mediaDevices.addEventListener('devicechange', async ()=>{
+    try{
+      const devs=await navigator.mediaDevices.enumerateDevices();
+      const ok=devs.some(d=>d.kind==='videoinput')||devs.some(d=>d.kind==='audioinput');
+      publishBtn.disabled = !ok || localTracks.length===0;
+    }catch(_){}
+  });
+}
+
+/* Debug HLS (اختياري) */
+(function addHlsDebug(){
+  function wireDebug(video){
+    const h=video && video.__hls; if(!h) return;
+    h.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{console.log('[HLS] MANIFEST_PARSED levels=',(data&&data.levels||[]).map(l=>({h:l.height,codecs:l.codecs})));});
+    h.on(Hls.Events.LEVEL_LOADED,(_,data)=>{console.log('[HLS] LEVEL_LOADED targetduration=',data?.details?.targetduration,'frags=',data?.details?.fragments?.length);});
+    h.on(Hls.Events.ERROR,(_,err)=>{console.error('[HLS] ERROR',err?.type,err?.details,err);});
+  }
+  const mo=new MutationObserver(()=>{document.querySelectorAll('video').forEach(v=>{if(!v.__debugWired && v.__hls){v.__debugWired=true;wireDebug(v);}});});
+  mo.observe(document.body,{childList:true,subtree:true});
+})();

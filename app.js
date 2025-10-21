@@ -177,11 +177,11 @@ let localVideoTrack=null;  // LK.LocalVideoTrack
 let localAudioTrack=null;  // LK.LocalAudioTrack
 let localAudioEl=null;     // <audio> لمراقبة صوت المايك عند اختيار LOCAL
 
-/* ==== NEW: حاويات لعناصر LiveKit الخاصة بالمشاركين الآخرين ==== */
-const remoteAudioEls = new Map();    // participantSid -> <audio>
+/* ==== للمشاركين الآخرين ==== */
+const remoteAudioEls = new Map();    // sid -> <audio>
 function remoteKey(participant){ return `lk:${participant?.sid || 'unknown'}`; }
 
-/* أدوات ديكود JWT بسيطة (تشخيص فقط) */
+/* أدوات ديكود JWT (تشخيص فقط) */
 function b64urlToUtf8(str){
   try{
     const pad = '='.repeat((4 - (str.length % 4)) % 4);
@@ -201,6 +201,17 @@ function decodeJWT(t){
   }catch(_){ return null; }
 }
 
+/* ==== توافق إصدارات SDK: participants vs remoteParticipants ==== */
+function getRemoteParticipantsMap(room){
+  return room?.participants || room?.remoteParticipants || null; // Map-like
+}
+function forEachMap(map, cb){
+  if(!map) return;
+  if(typeof map.forEach === 'function'){ map.forEach((v,k)=>{ try{ cb(v,k); }catch(_){ } }); return; }
+  // fallback لو كان Object عادي
+  Object.keys(map).forEach(k=>{ try{ cb(map[k],k); }catch(_){ } });
+}
+
 /* إنشاء عنصر في القائمة */
 function addListItem(id,label){
   if(document.querySelector(`.stream-item[data-cam="${id}"]`)) return;
@@ -217,7 +228,7 @@ function removeListItem(id){
   if(li && li.parentNode) li.parentNode.removeChild(li);
 }
 
-/* ==== NEW: إنشاء/إزالة بلاطة فيديو لمشارك بعيد ==== */
+/* إنشاء/إزالة بلاطة فيديو لمشارك بعيد */
 function addRemoteVideoTile(participant, videoTrack){
   const key = remoteKey(participant);
   let ent = playersCache.get(key);
@@ -235,7 +246,6 @@ function addRemoteVideoTile(participant, videoTrack){
   const label = `LK:${(participant?.identity || participant?.sid || 'GUEST').toString().toUpperCase()}`;
   addListItem(key, label);
 }
-
 function removeRemoteVideoTileByParticipant(participant){
   const key = remoteKey(participant);
   const ent = playersCache.get(key);
@@ -244,7 +254,7 @@ function removeRemoteVideoTileByParticipant(participant){
   removeListItem(key);
 }
 
-/* ==== NEW: إرفاق/إزالة الصوت البعيد ==== */
+/* إرفاق/إزالة الصوت البعيد */
 function attachRemoteAudio(participant, audioTrack){
   const sid = participant?.sid; if(!sid) return;
   if(remoteAudioEls.has(sid)) return;
@@ -267,8 +277,6 @@ function detachRemoteAudio(participant){
 /* إدارة LOCAL */
 function ensureLocalTile(){
   if(!localVideoTrack) return;
-
-  // عنصر الفيديو المحلي (بدون صوت — الصوت يُدار عبر localAudioEl)
   let ent = playersCache.get('local');
   if(!ent){
     const wrap=document.createElement('div'); wrap.className='layer'; wrap.style.cssText='position:absolute;inset:0;opacity:0';
@@ -296,7 +304,6 @@ function ensureLocalTile(){
     streamList.prepend(li);
   }
 }
-
 function removeLocalTile(){
   const li = document.querySelector('.stream-item[data-cam="local"]');
   if(li && li.parentNode) li.parentNode.removeChild(li);
@@ -306,11 +313,10 @@ function removeLocalTile(){
   stopLocalAudioMonitor();
 }
 
-/* إنشاء/إيقاف صوت المراقبة للمايك عند اختيار LOCAL فقط */
+/* مراقبة صوت المايك عند اختيار LOCAL فقط */
 function startLocalAudioMonitor(){
   if(!localAudioTrack) return;
   if(localAudioEl) return;
-
   const rawA = localAudioTrack.mediaStreamTrack || localAudioTrack.track || localAudioTrack;
   if(!rawA) return;
 
@@ -328,7 +334,6 @@ function startLocalAudioMonitor(){
   document.body.appendChild(localAudioEl);
   localAudioEl.play().catch(()=>{});
 }
-
 function stopLocalAudioMonitor(){
   if(localAudioEl){
     try{ localAudioEl.pause(); }catch(_){}
@@ -380,7 +385,7 @@ function buildStreamList(){
     streamList.appendChild(li);
   });
 
-  // إعادة إدراج المشاركين البعيدين الموجودين مسبقًا (لو موجودين في الكاش)
+  // إعادة إدراج المشاركين البعيدين الموجودين مسبقًا
   playersCache.forEach((ent, key)=>{
     if(key.startsWith('lk:')){
       const label = `LK:${(ent.identity || ent.sid || 'GUEST').toString().toUpperCase()}`;
@@ -416,7 +421,7 @@ async function setActiveCamSmooth(id){
   }
 
   if(id && id.startsWith('lk:')){
-    stopLocalAudioMonitor(); // إن انتقلنا بعيدًا عن LOCAL
+    stopLocalAudioMonitor();
     const target = playersCache.get(id);
     if(!target) return;
     const v=target.video, w=target.wrap;
@@ -502,7 +507,6 @@ document.getElementById('mainPreview').addEventListener('click',()=>{if(splitMod
 function LKGlobal(){
   return (window.livekit||window.Livekit||window.LiveKit||window.LiveKitClient||window.LivekitClient||window.livekitClient);
 }
-
 function setLKStatus(txt){ lkStatus.textContent = txt; }
 function haveSDK(){ const LK = LKGlobal(); return !!(LK && LK.Room && LK.createLocalTracks); }
 function showSDKAlert(){ alert('LiveKit SDK غير مُحمَّل — تأكد من /vendor/livekit-client.umd.js أو السماح بالـCDN.'); }
@@ -520,6 +524,39 @@ async function ensureDevicesPermission(){
   }catch(e){ throw new Error('تعذر الوصول للكاميرا/المايك — تحقق من الأذونات ثم أعد المحاولة.');}
 }
 
+/* ربط أحداث الغرفة للاشتراك في المسارات البعيدة */
+function wireRoomEvents(room, LK){
+  room.on(LK.RoomEvent.TrackSubscribed, (track, publication, participant)=>{
+    if(track.kind==='video'){ addRemoteVideoTile(participant, track); }
+    if(track.kind==='audio'){ attachRemoteAudio(participant, track); }
+  });
+  room.on(LK.RoomEvent.TrackUnsubscribed, (track, publication, participant)=>{
+    if(track.kind==='video'){ removeRemoteVideoTileByParticipant(participant); }
+    if(track.kind==='audio'){ detachRemoteAudio(participant); }
+  });
+  room.on(LK.RoomEvent.ParticipantDisconnected, (participant)=>{
+    removeRemoteVideoTileByParticipant(participant);
+    detachRemoteAudio(participant);
+  });
+  room.on(LK.RoomEvent.ConnectionStateChanged, (state)=>{
+    console.log('[LiveKit] state =', state);
+  });
+  room.on(LK.RoomEvent.Disconnected, ()=>{
+    setLKStatus('LiveKit: غير متصل');
+    [...playersCache.keys()].filter(k=>k.startsWith('lk:')).forEach(k=>{
+      const ent = playersCache.get(k);
+      if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);
+      playersCache.delete(k);
+      removeListItem(k);
+    });
+    remoteAudioEls.forEach((el)=>{ try{ el.pause(); }catch(_){}
+      try{ el.remove(); }catch(_){}
+    });
+    remoteAudioEls.clear();
+  });
+}
+
+/* اقتران الأجهزة */
 pairBtn.addEventListener('click', async ()=>{
   try{
     if(!haveSDK()){ showSDKAlert(); return; }
@@ -542,8 +579,8 @@ pairBtn.addEventListener('click', async ()=>{
       if(t.kind==='audio') localAudioTrack=t;
     }
 
-    ensureLocalTile();    // ← أنشئ عنصر المُعاينة المحلي في الواجهة
-    buildStreamList();    // أعد بناء القائمة لتتضمن LOCAL في الأعلى
+    ensureLocalTile();
+    buildStreamList();
     markActiveList();
 
     setLKStatus('جاهز للنشر');
@@ -556,43 +593,141 @@ pairBtn.addEventListener('click', async ()=>{
   }
 });
 
+/* نشر مع تشخيص تفصيلي */
 publishBtn.addEventListener('click', async ()=>{
   if(!haveSDK()){ showSDKAlert(); return; }
+  const LK = LKGlobal();
+  const roomName = roomSel.value || 'room-1';
+  const identity=(displayName.value||'').trim() || ('user-'+Math.random().toString(36).slice(2,8));
+
   try{
-    const LK = LKGlobal();
     publishBtn.disabled=true;
-    const roomName = roomSel.value || 'room-1';
-    const identity=(displayName.value||'').trim() || ('user-'+Math.random().toString(36).slice(2,8));
 
     setLKStatus('جلب توكن…');
-    const res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`,{mode:'cors'});
-    if(!res.ok){ publishBtn.disabled=false; alert('فشل طلب التوكن (تحقق من السيرفر).'); setLKStatus('فشل جلب التوكن'); return; }
-    const data=await res.json();
+    let res, text;
+    try{
+      res = await fetch(`https://steps-presinter.onrender.com/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}&name=${encodeURIComponent(identity)}`,{mode:'cors'});
+    }catch(fetchErr){
+      alert('فشل طلب التوكن (fetch/network): ' + (fetchErr?.message||fetchErr));
+      publishBtn.disabled=false; setLKStatus('فشل جلب التوكن'); return;
+    }
+
+    text = await res.text();
+    if(!res.ok){
+      alert(`فشل طلب التوكن: status ${res.status}\nBody: ${text.slice(0,300)}`);
+      publishBtn.disabled=false; setLKStatus('فشل جلب التوكن'); return;
+    }
+
+    let data;
+    try{ data = JSON.parse(text); }
+    catch(parseErr){
+      alert('JSON token غير صالح: ' + text.slice(0,300));
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
+
     const url=data.url, token=data.token;
-    if(!url || !token){ publishBtn.disabled=false; alert('استجابة توكن غير صحيحة {url, token}.'); setLKStatus('توكن غير صالح'); return; }
+    if(typeof url!=='string' || !/^wss:\/\//i.test(url)){
+      alert('قيمة url غير صحيحة (يجب أن تبدأ بـ wss://): ' + String(url));
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
+    if(typeof token!=='string' || token.split('.').length<2){
+      alert('قيمة token غير صحيحة: ' + String(token).slice(0,60));
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
 
+    // تشخيص الـJWT
+    const payload = decodeJWT(token) || {};
+    const now = Math.floor(Date.now()/1000);
+    if(payload.exp && now >= payload.exp){
+      alert(`Token منتهي الصلاحية (exp=${payload.exp}, now=${now}). حدّث السيرفر لزيادة المدة.`);
+      publishBtn.disabled=false; setLKStatus('توكن منتهي'); return;
+    }
+    if(!payload.video || payload.video.roomJoin!==true){
+      alert('Token grants لا تسمح roomJoin=true. راجع إنشاء الـJWT في السيرفر.');
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
+    if(payload.video.room && payload.video.room !== roomName){
+      alert(`Token مخصص لغرفة مختلفة (${payload.video.room}) ≠ (${roomName}).`);
+      publishBtn.disabled=false; setLKStatus('توكن غير صالح'); return;
+    }
+
+    // اتصال
     setLKStatus('الاتصال بالغرفة…');
-    lkRoom=new LK.Room({adaptiveStream:true,dynacast:true});
+    lkRoom=new LK.Room({adaptiveStream:true,dynacast:true,autoSubscribe:true});
+    wireRoomEvents(lkRoom, LK);
     lkRoom.on(LK.RoomEvent.Disconnected,()=>setLKStatus('LiveKit: غير متصل'));
-    await lkRoom.connect(url,token);
 
+    try{
+      await lkRoom.connect(url,token);
+    }catch(connectErr){
+      console.error('connect error:', connectErr);
+      alert('LiveKit connect failed: ' + (connectErr?.message || String(connectErr)));
+      publishBtn.disabled=false; setLKStatus('فشل الاتصال'); return;
+    }
+
+    // نشر المسارات
     setLKStatus('نشر المسارات…');
-    for(const tr of localTracks){ await lkRoom.localParticipant.publishTrack(tr); }
+    try{
+      for(const tr of localTracks){ await lkRoom.localParticipant.publishTrack(tr); }
+    }catch(pubErr){
+      console.error('publishTrack error:', pubErr);
+      alert('تعذر نشر الصوت/الفيديو: ' + (pubErr?.message || String(pubErr)));
+      publishBtn.disabled=false; setLKStatus('فشل النشر'); return;
+    }
+
     setLKStatus(`LiveKit: متصل (${roomName})`);
+
+    // استكشاف أي مشارك موجود مسبقًا (توافق participants/remoteParticipants)
+    const rem = getRemoteParticipantsMap(lkRoom);
+    forEachMap(rem, (p)=>{
+      const pubs = p?.trackPublications;
+      if(pubs && typeof pubs.forEach === 'function'){
+        pubs.forEach((pub)=>{
+          if(pub.isSubscribed && pub.track){
+            if(pub.kind==='video') addRemoteVideoTile(p, pub.track);
+            if(pub.kind==='audio') attachRemoteAudio(p, pub.track);
+          }
+        });
+      }else if(pubs){
+        // fallback لو كانت object
+        Object.keys(pubs).forEach(k=>{
+          const pub = pubs[k];
+          if(pub && pub.isSubscribed && pub.track){
+            if(pub.kind==='video') addRemoteVideoTile(p, pub.track);
+            if(pub.kind==='audio') attachRemoteAudio(p, pub.track);
+          }
+        });
+      }
+    });
+
   }catch(err){
-    console.error('Publish error:',err);
-    alert('تعذر نشر الصوت/الفيديو — تأكد من الشبكة والتوكن.');
+    console.error('Publish error (wrapper):',err);
+    alert('تعذر نشر الصوت/الفيديو — تفاصيل: ' + (err?.message || String(err)));
     setLKStatus('فشل النشر');
     publishBtn.disabled=false;
   }
 });
 
+/* إيقاف */
 stopBtn.addEventListener('click',()=>{
   try{
     if(lkRoom){ lkRoom.disconnect(); lkRoom=null; }
     try{ localTracks.forEach(t=>t.stop()); }catch(_){}
     localTracks=[]; localVideoTrack=null; localAudioTrack=null;
+    stopLocalAudioMonitor();
     removeLocalTile();
+
+    [...playersCache.keys()].filter(k=>k.startsWith('lk:')).forEach(k=>{
+      const ent = playersCache.get(k);
+      if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);
+      playersCache.delete(k);
+      removeListItem(k);
+    });
+    remoteAudioEls.forEach((el)=>{ try{ el.pause(); }catch(_){}
+      try{ el.remove(); }catch(_){}
+    });
+    remoteAudioEls.clear();
+
     setLKStatus('LiveKit: غير متصل');
     publishBtn.disabled=true;
     stopBtn.disabled=true;

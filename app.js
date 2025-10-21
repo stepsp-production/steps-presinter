@@ -177,6 +177,74 @@ let localVideoTrack=null;  // LK.LocalVideoTrack
 let localAudioTrack=null;  // LK.LocalAudioTrack
 let localAudioEl=null;     // <audio> لمراقبة صوت المايك عند اختيار LOCAL
 
+/* ==== NEW: حاويات لعناصر LiveKit الخاصة بالمشاركين الآخرين ==== */
+const remoteAudioEls = new Map();    // participantSid -> <audio>
+function remoteKey(participant){ return `lk:${participant?.sid || 'unknown'}`; }
+
+/* إنشاء عنصر في القائمة */
+function addListItem(id,label){
+  if(document.querySelector(`.stream-item[data-cam="${id}"]`)) return;
+  const li=document.createElement('li'); li.className='stream-item'; li.dataset.cam=id;
+  const name=document.createElement('div'); name.className='stream-name'; name.textContent=label;
+  li.appendChild(name);
+  li.addEventListener('click',()=>setActiveCamSmooth(id));
+  streamList.prepend(li);
+}
+
+/* إزالة عنصر من القائمة */
+function removeListItem(id){
+  const li=document.querySelector(`.stream-item[data-cam="${id}"]`);
+  if(li && li.parentNode) li.parentNode.removeChild(li);
+}
+
+/* ==== NEW: إنشاء/إزالة بلاطة فيديو لمشارك بعيد ==== */
+function addRemoteVideoTile(participant, videoTrack){
+  const key = remoteKey(participant);
+  let ent = playersCache.get(key);
+  if(!ent){
+    const wrap=document.createElement('div'); wrap.className='layer'; wrap.style.cssText='position:absolute;inset:0;opacity:0';
+    const v=document.createElement('video');
+    v.playsInline=true; v.autoplay=true; v.controls=false; v.muted=false;
+    v.style.cssText='width:100%;height:100%;object-fit:contain';
+    wrap.appendChild(v);
+    mountTo(camContainer,wrap);
+    ent = {wrap, video:v, ready:true, kind:'remote', identity: participant?.identity || '', sid: participant?.sid || ''};
+    playersCache.set(key, ent);
+  }
+  try{ videoTrack.attach(ent.video); }catch(_){}
+  const label = `LK:${(participant?.identity || participant?.sid || 'GUEST').toString().toUpperCase()}`;
+  addListItem(key, label);
+}
+
+function removeRemoteVideoTileByParticipant(participant){
+  const key = remoteKey(participant);
+  const ent = playersCache.get(key);
+  if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);
+  playersCache.delete(key);
+  removeListItem(key);
+}
+
+/* ==== NEW: إرفاق/إزالة الصوت البعيد ==== */
+function attachRemoteAudio(participant, audioTrack){
+  const sid = participant?.sid; if(!sid) return;
+  if(remoteAudioEls.has(sid)) return;
+  const el = audioTrack.attach(); // يُنشئ <audio> ويُعيده
+  el.style.display='none';
+  document.body.appendChild(el);
+  try{ el.play().catch(()=>{}); }catch(_){}
+  remoteAudioEls.set(sid, el);
+}
+function detachRemoteAudio(participant){
+  const sid = participant?.sid; if(!sid) return;
+  const el = remoteAudioEls.get(sid);
+  if(el){
+    try{ el.pause(); }catch(_){}
+    try{ el.remove(); }catch(_){}
+  }
+  remoteAudioEls.delete(sid);
+}
+
+/* إدارة LOCAL */
 function ensureLocalTile(){
   if(!localVideoTrack) return;
 
@@ -292,6 +360,15 @@ function buildStreamList(){
     li.addEventListener('click',()=>setActiveCamSmooth(ch.id));
     streamList.appendChild(li);
   });
+
+  // ==== NEW: أعِد إدراج أي مشاركين بعيدين موجودين مسبقًا ====
+  playersCache.forEach((ent, key)=>{
+    if(key.startsWith('lk:')){
+      const label = `LK:${(ent.identity || ent.sid || 'GUEST').toString().toUpperCase()}`;
+      addListItem(key, label);
+    }
+  });
+
   document.addEventListener('keydown',(e)=>{
     if(e.target && ['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
     const items=[...document.querySelectorAll('.stream-item')];
@@ -306,20 +383,36 @@ initOnce();
 async function setActiveCamSmooth(id){
   if(id==='local'){
     if(!localVideoTrack) return;
-    const target=getOrCreateCam('local'); if(!target) return;
+    const target=playersCache.get('local'); if(!target) return;
     const v=target.video, w=target.wrap;
     try{ await v.play(); }catch(_){}
     w.className='layer fade-in'; w.style.opacity='1';
     const old = activePlayer, oldWrap = old ? old.parentElement : null;
-    setTimeout(()=>{ 
-      if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; } 
-      activePlayer=v; currentCam='local'; markActiveList(); 
+    setTimeout(()=>{
+      if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; }
+      activePlayer=v; currentCam='local'; markActiveList();
       startLocalAudioMonitor();          // ⇐ شغِّل صوت المايك عند اختيار LOCAL
     }, 180);
     return;
   }
 
-  // الانتقال إلى أي كاميرا أخرى => أوقف صوت LOCAL
+  // ==== NEW: مسارات LiveKit (المشاركون البعيدون) ====
+  if(id && id.startsWith('lk:')){
+    stopLocalAudioMonitor(); // إن انتقلنا بعيدًا عن LOCAL
+    const target = playersCache.get(id);
+    if(!target) return;
+    const v=target.video, w=target.wrap;
+    try{ await v.play(); }catch(_){}
+    w.className='layer fade-in'; w.style.opacity='1';
+    const old = activePlayer, oldWrap = old ? old.parentElement : null;
+    setTimeout(()=>{
+      if(oldWrap){ oldWrap.className='layer fade-out'; oldWrap.style.opacity='0'; }
+      activePlayer=v; currentCam=id; markActiveList();
+    }, 180);
+    return;
+  }
+
+  // الانتقال إلى أي كاميرا HLS أخرى => أوقف صوت LOCAL
   stopLocalAudioMonitor();
 
   if(!window.sources[id] || id===currentCam) return;
@@ -410,6 +503,44 @@ async function ensureDevicesPermission(){
   }catch(e){ throw new Error('تعذر الوصول للكاميرا/المايك — تحقق من الأذونات ثم أعد المحاولة.');}
 }
 
+/* ==== NEW: ربط أحداث الغرفة للاشتراك في المسارات البعيدة ==== */
+function wireRoomEvents(room, LK){
+  // عندما يتم الاشتراك في مسار بعيد
+  room.on(LK.RoomEvent.TrackSubscribed, (track, publication, participant)=>{
+    if(track.kind==='video'){ addRemoteVideoTile(participant, track); }
+    if(track.kind==='audio'){ attachRemoteAudio(participant, track); }
+  });
+
+  // عند إلغاء الاشتراك أو توقف المسار
+  room.on(LK.RoomEvent.TrackUnsubscribed, (track, publication, participant)=>{
+    if(track.kind==='video'){ removeRemoteVideoTileByParticipant(participant); }
+    if(track.kind==='audio'){ detachRemoteAudio(participant); }
+  });
+
+  // عند مغادرة مشارك
+  room.on(LK.RoomEvent.ParticipantDisconnected, (participant)=>{
+    removeRemoteVideoTileByParticipant(participant);
+    detachRemoteAudio(participant);
+  });
+
+  // عند الانفصال العام من الغرفة — نظّف كل شيء
+  room.on(LK.RoomEvent.Disconnected, ()=>{
+    setLKStatus('LiveKit: غير متصل');
+    // إزالة كل عناصر lk: من الواجهة
+    [...playersCache.keys()].filter(k=>k.startsWith('lk:')).forEach(k=>{
+      const ent = playersCache.get(k);
+      if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);
+      playersCache.delete(k);
+      removeListItem(k);
+    });
+    // إزالة الأصوات
+    remoteAudioEls.forEach((el)=>{ try{ el.pause(); }catch(_){}
+      try{ el.remove(); }catch(_){}
+    });
+    remoteAudioEls.clear();
+  });
+}
+
 pairBtn.addEventListener('click', async ()=>{
   try{
     if(!haveSDK()){ showSDKAlert(); return; }
@@ -462,13 +593,27 @@ publishBtn.addEventListener('click', async ()=>{
     if(!url || !token){ publishBtn.disabled=false; alert('استجابة توكن غير صحيحة {url, token}.'); setLKStatus('توكن غير صالح'); return; }
 
     setLKStatus('الاتصال بالغرفة…');
-    lkRoom=new LK.Room({adaptiveStream:true,dynacast:true});
+    // ==== NEW: autoSubscribe=true كي نستقبل مسارات الآخرين تلقائيًا ====
+    lkRoom=new LK.Room({adaptiveStream:true,dynacast:true,autoSubscribe:true});
+    wireRoomEvents(lkRoom, LK); // ربط الأحداث
     lkRoom.on(LK.RoomEvent.Disconnected,()=>setLKStatus('LiveKit: غير متصل'));
     await lkRoom.connect(url,token);
 
     setLKStatus('نشر المسارات…');
     for(const tr of localTracks){ await lkRoom.localParticipant.publishTrack(tr); }
     setLKStatus(`LiveKit: متصل (${roomName})`);
+
+    // ==== NEW: لو دخلنا بعد آخرين وكان لدينا اشتراك تلقائي، سيصل TrackSubscribed.
+    // ومع ذلك، إن كانت هناك منشورات جاهزة ولم تُدفع أحداثها بعد، نستدعي تحققًا سريعًا.
+    lkRoom.participants.forEach((p)=>{
+      p.trackPublications?.forEach((pub)=>{
+        if(pub.isSubscribed && pub.track){
+          if(pub.kind==='video') addRemoteVideoTile(p, pub.track);
+          if(pub.kind==='audio') attachRemoteAudio(p, pub.track);
+        }
+      });
+    });
+
   }catch(err){
     console.error('Publish error:',err);
     alert('تعذر نشر الصوت/الفيديو — تأكد من الشبكة والتوكن.');
@@ -484,6 +629,19 @@ stopBtn.addEventListener('click',()=>{
     localTracks=[]; localVideoTrack=null; localAudioTrack=null;
     stopLocalAudioMonitor();
     removeLocalTile();
+
+    // ==== NEW: نظافة إضافية للمشتركين البعيدين عند الإيقاف اليدوي ====
+    [...playersCache.keys()].filter(k=>k.startsWith('lk:')).forEach(k=>{
+      const ent = playersCache.get(k);
+      if(ent && ent.wrap && ent.wrap.parentNode) ent.wrap.parentNode.removeChild(ent.wrap);
+      playersCache.delete(k);
+      removeListItem(k);
+    });
+    remoteAudioEls.forEach((el)=>{ try{ el.pause(); }catch(_){}
+      try{ el.remove(); }catch(_){}
+    });
+    remoteAudioEls.clear();
+
     setLKStatus('LiveKit: غير متصل');
     publishBtn.disabled=true;
     stopBtn.disabled=true;

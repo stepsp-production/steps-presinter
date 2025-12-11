@@ -85,12 +85,13 @@
     }
     #utilityControls{top:10px;right:10px}
 
-    /* شريط المزامنة: موجود لكن غير مرئي للمشاهد */
+    /* شريط المزامنة: موجود في الكود لكن مخفي تمامًا */
     #globalControls{
       bottom:70px;left:50%;transform:translateX(-50%);
       background:var(--panel-bg);padding:10px;border-radius:14px;border:1px solid var(--panel-bd);
       align-items:center;min-width:340px;
       opacity:0;pointer-events:none;
+      display:none; /* هنا الإخفاء الكامل */
     }
     #globalControls.hidden{display:none}
 
@@ -230,7 +231,7 @@
       <button id="btnSound" aria-label="تشغيل/إيقاف الصوت" title="صوت">🔊/🔇</button>
     </div>
 
-    <!-- الشريط الموحّد (مخفي للمشاهد) -->
+    <!-- الشريط الموحّد (موجود لكن مخفي للمشاهد) -->
     <div id="globalControls" class="hidden" role="group" aria-label="تحكم موحّد">
       <button id="gBack" title="⏪ -5s">⏪ 5s</button>
       <button id="gPlay" title="⏯">⏯</button>
@@ -330,7 +331,7 @@
   <!-- منطق LiveKit (الغرف العشرة) في ملفك -->
   <script src="/app.js" defer></script>
 
-  <!-- منطق المشغّل المتعدد (نفس آخر تعديل، مع توحيد السلوك للكمبيوتر والجوال) -->
+  <!-- منطق المشغّل المتعدد -->
   <script>
     /* ===== إعدادات التشغيل ===== */
     const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent||'');
@@ -344,7 +345,7 @@
     const SYNC_Drift_Correct  = 0.06;
     const SYNC_RATE           = 0.5;
 
-    const LL_ENABLED = true; // لن نستخدم LL في hlsConfig هنا، لكن نتركه لو احتجته لاحقاً
+    const LL_ENABLED = true;
 
     const hasUrl=(u)=>typeof u==='string' && /(https?:\/\/[^/]+)?\/hls\/.+\.m3u8(\?.*)?$/i.test(u);
 
@@ -358,7 +359,6 @@
     }
     function highestAvcIndex(levels){let m=-1;(levels||[]).forEach((l,i)=>{if(isAvc(l))m=i;});return m>=0?m:((levels&&levels.length)?levels.length-1:-1);}
 
-    // إعداد Hls (بدون LL موحد لكل الأجهزة)
     function hlsConfig(isLL){
       return {
         lowLatencyMode: !!isLL,
@@ -416,9 +416,7 @@
     }
     function snapIntoBuffer(v,t){t=capLiveEdge(v,t); const r=containsTime(v,t); if(r) return t; const near=nearestBufferedTime(v,t); return typeof near==='number'?near:t;}
 
-    /* ====== محرك HLS بدون مزامنة معقّدة ====== */
     function attachHlsWithAvc(video,url){
-      // نستخدم إعدادات non-LL لكل الأجهزة
       const hls=new Hls(hlsConfig(false));
       video.__hls=hls;
       hls.attachMedia(video);
@@ -456,7 +454,6 @@
       });
       hls.on(Hls.Events.FRAG_CHANGED,(_,data)=>{ updatePDT(data?.frag); });
 
-      // أخطاء قاتلة فقط
       hls.on(Hls.Events.ERROR,(_,err)=>{
         if(!err) return;
         const fatal = !!err.fatal;
@@ -466,7 +463,6 @@
         }
       });
 
-      // عند أول canplay نرجع 3 ثواني خلف الحافة لتقليل تكرار الفريمات
       const liveStartOffset = ()=>{
         if(video.__liveStarted) return;
         video.__liveStarted = true;
@@ -497,10 +493,8 @@
       const canNativeHls = hasUrl(url) && !!v.canPlayType && v.canPlayType('application/vnd.apple.mpegURL');
 
       if(!IS_MOBILE && hasUrl(url) && window.Hls && Hls.isSupported()){
-        // كمبيوتر + Hls.js
         attachHlsWithAvc(v,url);
       } else if(IS_MOBILE && canNativeHls){
-        // جوال يدعم HLS أصليًا
         v.src = url;
         v.addEventListener('canplay', ()=>{
           if(v.__liveStarted) return;
@@ -512,7 +506,6 @@
           }
         }, { once:true });
       } else if(hasUrl(url) && window.Hls && Hls.isSupported()){
-        // جوال لا يدعم HLS أصليًا → Hls.js
         attachHlsWithAvc(v,url);
       } else {
         v.src=url;
@@ -521,7 +514,6 @@
       return {wrap, video:v};
     }
 
-    /* ===== DOM & حالة ===== */
     const root=document.getElementById('playerContainer');
     const mainContainer=document.getElementById('mainPreview');
     const camContainer=document.getElementById('activeCam');
@@ -544,7 +536,7 @@
     let started=false, splitMode=0, isMainFull=false;
     let mainPlayer, activePlayer, currentCam='cam2';
     let ticker=null, isScrubbing=false;
-    const playersCache=new Map(); // id -> {wrap, video, ready, _prepared}
+    const playersCache=new Map();
 
     const autoSyncOn = false;
     let syncTimer = null;
@@ -570,7 +562,6 @@
       return rec;
     }
 
-    /* القائمة */
     function buildStreamList(){
       streamList.innerHTML='';
       (window.channelMap||[]).filter(ch=>hasUrl(ch.src)).forEach(ch=>{
@@ -608,7 +599,6 @@
     }
     initOnce();
 
-    /* PDT wall clock (محفوظ لو احتجته لاحقاً) */
     function wallClockFromVideo(v){
       if(v && v.__hasPDT && typeof v.__pdtOffset==='number'){
         return (v.currentTime||0) + v.__pdtOffset;
@@ -625,12 +615,10 @@
       return near;
     }
 
-    /* المزامنة (ملغاة لتقليل تكرار الفريمات) */
     function syncOnce(){
       return;
     }
 
-    /* تبديل الكاميرا مع تشغيل مباشر بدون قفزات زمنية */
     async function setActiveCamSmooth(id){
       if(!sources[id] || id===currentCam) return;
       currentCam=id; markActiveList();
@@ -664,7 +652,6 @@
       }, 180);
     }
 
-    /* واجهة مخفية تلقائيًا */
     let uiTimer=null;
     function showUI(){
       root.classList.remove('ui-hidden');
@@ -686,7 +673,6 @@
     });
     setTimeout(showUI,1000);
 
-    /* دالة ملء الشاشة (لكل الأجهزة) */
     function enterFullscreen(){
       const el = document.documentElement;
       if (document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement) return;
@@ -695,16 +681,14 @@
       else if (el.msRequestFullscreen) el.msRequestFullscreen();
     }
 
-    /* تشغيل أولي */
     async function startPlayback(){
       if(started) return;
       started=true;
 
-      // عند الضغط على زر التشغيل → ملء الشاشة
       enterFullscreen();
 
       gatePlay.classList.add('hidden');
-      globalControls.classList.remove('hidden'); // ما زال مخفي بصرياً عبر CSS
+      globalControls.classList.remove('hidden'); // يبقى مخفي بصرياً لأن CSS فيه display:none
 
       try{ await mainPlayer.play(); }catch(_){}
       try{ await activePlayer.play(); }catch(_){}
@@ -724,12 +708,10 @@
       },250);
     }
 
-    /* التحكّمات */
     const gSeek=(ofs)=>{
       if(!started) return;
       const t=capLiveEdge(mainPlayer,(mainPlayer.currentTime||0)+ofs);
       mainPlayer.currentTime=t;
-      // لا نغيّر الكاميرات للحفاظ على الاستقرار
     };
 
     const mainContainerEl=document.getElementById('mainPreview');
@@ -793,7 +775,6 @@
       if(e.key==='ArrowRight'){ gFwd.click(); }
     });
 
-    // تقليل الاستهلاك عند التصغير
     document.addEventListener('visibilitychange',()=>{
       const vids=[mainPlayer, ...[...playersCache.values()].map(x=>x.video)];
       if(document.hidden){

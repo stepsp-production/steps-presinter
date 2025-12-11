@@ -315,10 +315,10 @@
         document.head.appendChild(s);
       }
       if(!hasLK()){
-        load('/vendor/livekit-client.umd.min.js', function(){
+        load('/vendor/livekit-client.umd.js', function(){
           console.log('LiveKit local loaded');
         }, function(){
-          load('https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js',
+          load('https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.js',
             function(){ console.log('LiveKit CDN loaded'); },
             function(){ console.error('تعذّر تحميل LiveKit SDK محليًا وCDN'); }
           );
